@@ -37,6 +37,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# supabase CLI local cache (not the migrations directory)
+/supabase/.temp
+/supabase/.branches
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

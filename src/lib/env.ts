@@ -21,4 +21,16 @@ export const env = {
       "SUPABASE_SERVICE_ROLE_KEY",
       process.env.SUPABASE_SERVICE_ROLE_KEY
     ),
+  /**
+   * Non-throwing check for the two public Supabase variables. Use this to
+   * decide whether to render auth UI at all, so pages that need Supabase
+   * can show a clear "not configured" message instead of crashing — and
+   * so callers never need to wrap the throwing accessors above in
+   * try/catch just to check availability.
+   */
+  isSupabaseConfiguredPublic: () =>
+    Boolean(
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ),
 };
