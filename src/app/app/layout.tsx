@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
 import { getCurrentProfile } from "@/features/auth/profile";
 import { SupabaseConfigNotice } from "@/features/auth/components/supabase-config-notice";
+import { AppShell } from "@/features/marketplace/components/app-shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   if (!env.isSupabaseConfiguredPublic()) {
@@ -19,5 +20,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect("/login?next=/app");
   if (!profile?.onboarding_completed) redirect("/onboarding");
 
-  return <div className="mx-auto w-full max-w-2xl px-4 py-8">{children}</div>;
+  return (
+    <AppShell isFarmer={profile.is_farmer} isProvider={profile.is_provider}>
+      {children}
+    </AppShell>
+  );
 }

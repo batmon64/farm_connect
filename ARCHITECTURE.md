@@ -243,6 +243,63 @@ via the OR in its SELECT policy, not a separate owner-write path.
 - Provider-side status updates on `job_assignments` (e.g. marking their
   own work complete) — update is job-owner-only for now.
 
+## Marketplace UI (Phase 3B)
+
+The first working marketplace loop: farmer posts a job → provider
+discovers it → provider offers → farmer accepts → both see the
+confirmed job. Built on the Phase 3A schema — see "Marketplace data
+model" above for the tables this section's routes and RPCs sit on top of.
+
+**Routing.** `/app/**` is one authenticated tree with two sub-experiences
+sharing a layout:
+- `/app`, `/app/jobs*`, `/app/notifications`, `/app/profile` — farmer.
+- `/app/provider*` — provider (its own `layout.tsx` redirects to `/app`
+  if `!profile.is_provider`).
+
+`AppShell` (`src/features/marketplace/components/app-shell.tsx`) reads
+the current pathname to decide which of the two bottom-nav sets to show,
+and — when a profile has both capabilities — renders a "Switch to
+Farmer/Provider" banner linking between `/app` and `/app/provider`. This
+is the one role-switching mechanism; there's no per-request role state
+beyond it. The root layout hides the public marketing header/footer/nav
+for `/app/**` (via an `x-pathname` header `src/proxy.ts` sets and the
+root layout reads — Server Components have no `usePathname()`), so the
+two chrome systems never double up.
+
+**Provider-side reads never touch `farm_jobs.location` directly.** RLS
+alone can't hide one column while allowing the row — see "Marketplace
+data model" for why discovery goes through `SECURITY DEFINER` functions
+(`discover_jobs`, `get_offers_for_job`, `get_my_offers`, all in
+`src/features/{jobs,provider}/queries.ts`) that explicitly choose safe
+columns instead. `discover_jobs(p_job_id?, p_max_distance_km?)` doubles
+as both the list feed and the single-job detail fetch pre-offer, to keep
+that logic in one place. Once a `job_assignments` row exists, RLS grants
+the assigned provider (and the job owner, the other way) real direct
+table access, including exact location/phone — that's a deliberate,
+narrow RLS addition (0011, 0016), not a function, because full access is
+exactly correct at that point.
+
+**Multi-table writes are atomic RPCs, not sequential client inserts** —
+`create_farm_job`, `submit_job_offer`, `accept_job_offer` (0014). The
+latter two are `SECURITY DEFINER` because submitting/accepting needs to
+flip `farm_jobs.status`, which belongs to the *other* party; each
+re-checks authorization internally before writing (see the migration's
+comments). `create_farm_job` is plain `SECURITY INVOKER` — inserting
+your own data needs no elevation, just atomicity.
+
+**Job creation** (`src/features/jobs/components/create-job-wizard.tsx`)
+is a client-only multi-step wizard — all draft state lives in local
+React state and nothing is written to the database until the final
+"Post Job" submit calls `create_farm_job`. There's no persisted
+`draft` row for an abandoned wizard; the client state *is* the draft for
+this phase.
+
+**Location capture** uses the browser Geolocation API only (`"Use my
+current location"`, in both the job wizard and the provider profile
+form) — no geocoding/maps dependency. If a user skips it, the relevant
+`geography` column stays null and that record just doesn't participate
+in distance sorting/display; nothing else breaks.
+
 ## Environment variables
 
 All access goes through `src/lib/env.ts`, which throws a clear error if a
@@ -302,10 +359,13 @@ variable is missing rather than silently using `undefined`. Don't read
 
 ## Explicitly not decided yet
 
-No matching algorithm, no payments, no messaging, no notifications, no
-admin functionality, and no marketplace UI of any kind (job creation
-form, provider dashboard, offer UI, ...). Auth (Phase 2) and the
-marketplace database foundation (Phase 3A) exist — see "Auth and user
-identity" and "Marketplace data model" above. These remaining items are
-scoped to future phases and should not be anticipated speculatively in
-this codebase.
+No matching algorithm (relevance in `discover_jobs` is plain SQL
+ordering — matching service, then distance, then soonest scheduled), no
+payments, no real messaging (the Notifications/Alerts nav item is an
+empty placeholder page — no notifications table or delivery mechanism
+exists), no worker/machine-to-assignment allocation, and no admin
+functionality. Auth (Phase 2), the marketplace database foundation
+(Phase 3A), and the first farmer↔provider job loop (Phase 3B) exist —
+see "Auth and user identity", "Marketplace data model", and "Marketplace
+UI" above. These remaining items are scoped to future phases and should
+not be anticipated speculatively in this codebase.

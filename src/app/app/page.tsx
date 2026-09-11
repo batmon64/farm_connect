@@ -1,61 +1,101 @@
 import type { Metadata } from "next";
-import { TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Plus, Sprout } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { env } from "@/lib/env";
 import { getCurrentProfile } from "@/features/auth/profile";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { LogoutButton } from "@/features/auth/components/logout-button";
+import { listMyJobs } from "@/features/jobs/queries";
+import { JobCard } from "@/features/jobs/components/job-card";
+import { EmptyState } from "@/features/marketplace/components/empty-state";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
-export const metadata: Metadata = { title: "Your account — FarmConnect" };
+export const metadata: Metadata = { title: "Home — FarmConnect" };
 
-export default async function AppHomePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
-  // Next.js renders a layout and its page concurrently, so this can start
-  // executing even on a request where AppLayout is about to render its
-  // "not configured" branch instead of {children}. Guard independently
-  // rather than relying on the layout to prevent this from ever running.
-  if (!env.isSupabaseConfiguredPublic()) return null;
-
+export default async function FarmerHomePage() {
   const supabase = await createClient();
-  // AppLayout already guarantees a signed-in, onboarded user before this
-  // renders, so this lookup exists only to display it.
   const { user, profile } = await getCurrentProfile(supabase);
-  const { error } = await searchParams;
+  if (!user || !profile) return null;
+
+  if (!profile.is_farmer) {
+    if (profile.is_provider) redirect("/app/provider");
+    return null;
+  }
+
+  const jobs = await listMyJobs(supabase, user.id);
+  const waitingForOffers = jobs.filter((j) =>
+    ["posted", "matching", "offers_received"].includes(j.status)
+  ).length;
+  const confirmed = jobs.filter((j) =>
+    ["provider_selected", "confirmed", "in_progress"].includes(j.status)
+  ).length;
+  const completed = jobs.filter((j) => j.status === "completed").length;
+  const recent = jobs.slice(0, 5);
 
   return (
     <div className="flex flex-col gap-6">
-      {error === "logout_failed" ? (
-        <Alert variant="destructive">
-          <TriangleAlert className="size-4" />
-          <AlertDescription>Couldn&apos;t log out. Please try again.</AlertDescription>
-        </Alert>
-      ) : null}
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">
+            Welcome back{profile.display_name ? `, ${profile.display_name}` : ""}
+          </h1>
+          <p className="text-muted-foreground text-sm">Here&apos;s what&apos;s happening with your jobs.</p>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">
-            Welcome, {profile?.display_name || user?.email}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap gap-2">
-            {profile?.is_farmer ? <Badge>Farmer</Badge> : null}
-            {profile?.is_provider ? <Badge variant="secondary">Provider</Badge> : null}
+      <Button asChild className="h-12 w-full text-base md:w-auto">
+        <Link href="/app/jobs/new">
+          <Plus className="size-4" aria-hidden />
+          Post a Job
+        </Link>
+      </Button>
+
+      <div className="grid grid-cols-3 gap-3">
+        <StatTile label="Waiting for offers" value={waitingForOffers} />
+        <StatTile label="Confirmed" value={confirmed} />
+        <StatTile label="Completed" value={completed} />
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-medium">Recent jobs</h2>
+          {jobs.length > 0 ? (
+            <Link href="/app/jobs" className="text-primary text-sm underline underline-offset-4">
+              View all
+            </Link>
+          ) : null}
+        </div>
+
+        {recent.length === 0 ? (
+          <EmptyState
+            icon={Sprout}
+            title="You haven't posted any jobs yet."
+            description="Post your first farm job and providers nearby will be able to respond with offers."
+            action={
+              <Button asChild>
+                <Link href="/app/jobs/new">Post a Job</Link>
+              </Button>
+            }
+          />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {recent.map((job) => (
+              <JobCard key={job.id} job={job} />
+            ))}
           </div>
-          <p className="text-muted-foreground text-sm">
-            Your FarmConnect dashboard will appear here in a future phase —
-            job posting, matching, and bookings aren&apos;t built yet.
-          </p>
-          <div>
-            <LogoutButton />
-          </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
     </div>
+  );
+}
+
+function StatTile({ label, value }: { label: string; value: number }) {
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-1 px-3 py-4 text-center">
+        <span className="text-2xl font-semibold">{value}</span>
+        <span className="text-muted-foreground text-xs">{label}</span>
+      </CardContent>
+    </Card>
   );
 }

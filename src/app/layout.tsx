@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -21,7 +22,14 @@ export const metadata: Metadata = {
     "FarmConnect connects farmers with agricultural workers, machinery, and services on demand.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // /app/** builds its own chrome (AppShell) with role-aware navigation —
+  // the marketing header/footer/mobile-nav would just double up there.
+  // Server Components have no usePathname(); src/proxy.ts forwards the
+  // path via a response header for exactly this.
+  const pathname = (await headers()).get("x-pathname") ?? "";
+  const inApp = pathname.startsWith("/app");
+
   return (
     <html
       lang="en"
@@ -29,10 +37,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
-        <SiteHeader />
-        <main className="flex-1 pb-16 md:pb-0">{children}</main>
-        <SiteFooter />
-        <MobileTabBar />
+        {inApp ? (
+          children
+        ) : (
+          <>
+            <SiteHeader />
+            <main className="flex-1 pb-16 md:pb-0">{children}</main>
+            <SiteFooter />
+            <MobileTabBar />
+          </>
+        )}
       </body>
     </html>
   );
