@@ -37,9 +37,11 @@ src/
   proxy.ts                Next.js middleware entry point, scoped to
                            Supabase-dependent routes only (see below).
 supabase/
-  migrations/             Hand-written SQL migrations, applied manually via
-                           the Supabase SQL editor or `supabase db push`
-                           (no Supabase project is linked from this repo).
+  migrations/             Hand-written SQL migrations. No Supabase project
+                           is linked from this repo (no `supabase/config.toml`)
+                           — applied via the connected Supabase tooling or
+                           the SQL editor, numbered sequentially, never
+                           edited once applied to the live project.
 ```
 
 Rule of thumb: if code is used by exactly one feature, it lives inside that
@@ -145,6 +147,102 @@ verified server-side via `supabase.auth.verifyOtp` in
 `{{ .ConfirmationURL }}`. See the Supabase dashboard configuration steps
 in the README. An invalid or expired link lands on `/auth/error`.
 
+## Marketplace data model (Phase 3A)
+
+Database/backend foundation only — no marketplace UI exists yet (no job
+creation form, provider dashboard, offer UI, etc.). The schema exists so
+those features have something correct to build against.
+
+**Core distinction the schema enforces**: a *provider profile* (business
+identity — can list services, own machines, employ workers) is separate
+from a *user profile* (Phase 2 identity). A profile's `is_provider` flag
+just means "this account may act as a provider"; `provider_profiles` is
+what that provider actually looks like, and doesn't exist until they
+create one.
+
+```
+profiles (Phase 2)
+  └─ provider_profiles          1:1, cascades with the profile
+       ├─ provider_services     services this provider offers  ─┐
+       ├─ machines               ├─ machine_services            ├─ → services
+       │    └─ machine_availability (date/time ranges, booked)  │  (catalogue)
+       ├─ workers                                                │
+       ├─ teams ── team_workers → workers                        │
+       └─ provider_availability (recurring weekly hours)         │
+                                                                  │
+service_categories → services  ───────────────────────────────────┘
+  (public reference catalogue — seeded, not owned by any user)
+
+profiles (Phase 2)
+  └─ farm_jobs                  owned by the farmer (created_by)
+       ├─ job_services            }
+       ├─ job_machine_requirements } what the job needs — kept
+       ├─ job_worker_requirements  } separate from farm_jobs itself
+       ├─ job_offers ← provider_profiles   a provider's response
+       │    (NOT a reservation — see below)
+       └─ job_assignments ← job_offers      the provider actually
+            (one active assignment per job, enforced by a partial       selected
+            unique index; always traces back to an accepted offer)
+```
+
+**An offer is not a reservation** (explicit product rule): submitting a
+`job_offers` row never touches `machine_availability` or locks anything.
+Only a `job_assignments` row represents real commitment. Accepting an
+offer means the job owner creates a `job_assignments` row referencing it;
+a trigger (`sync_offer_status_on_assignment`) then flips that offer to
+`'accepted'` automatically — the job owner never gets UPDATE rights on
+`job_offers` directly, so "accept" stays a single controlled code path
+rather than an open grant. A second trigger
+(`validate_job_assignment_matches_offer`) rejects an assignment whose
+`job_id`/`provider_id` don't match the offer it claims to come from.
+
+**Deletion behavior** — two different rules, deliberately:
+- Provider-owned resources (`machines`, `workers`, `teams`,
+  `provider_services`, `provider_availability`, `machine_services`,
+  `team_workers`) **cascade** with their `provider_profiles` row. Only
+  the provider has a stake in these; if they delete their provider
+  profile, their listings should go with it.
+- `farm_jobs`, `job_offers`, and `job_assignments` **restrict** deletion
+  of the `profiles`/`provider_profiles` row they reference. A job is
+  shared history between a farmer and provider(s) — it must not
+  disappear because one party's profile was deleted. (Account-deletion
+  flows that need to handle this — anonymize instead of delete, etc. —
+  are a future, dedicated design, not an FK cascade.)
+- Catalogue rows (`service_categories`, `services`) use `ON DELETE
+  RESTRICT` from anything that references them — deactivate
+  (`is_active = false`) instead of deleting once something depends on a
+  row.
+
+**RLS**: every table owner-scoped (no cross-user read/write) except the
+catalogue (`service_categories`/`services`, publicly readable, writable
+only via migrations — there's no end-user write policy at all). Two
+reusable `SECURITY DEFINER` predicate functions —
+`owns_provider_profile(id)` and `owns_farm_job(id)` — back most
+policies; they only ever return a boolean tied to `auth.uid()`, so
+they're safe to grant `EXECUTE` to `anon`/`authenticated` (a policy
+calling them needs the querying role to have that grant, unlike
+trigger-only functions). `job_offers` is the one asymmetric case: a
+provider manages their own offers, but the job owner gets read-only
+visibility into all offers on their job, not write access — enforced
+via the OR in its SELECT policy, not a separate owner-write path.
+
+**Deliberately deferred** (do not build ahead of the phase that needs it):
+- Public/marketplace read access to `provider_profiles`, `machines`, or
+  `farm_jobs` (e.g. "browse active providers", "browse posted jobs near
+  me") — needs a decision about exactly which fields are safe to expose
+  before any policy is written, not just RLS plumbing.
+- Automatic `farm_jobs.status` transitions — the app sets status
+  explicitly; the column just constrains it to a known set.
+- Worker/machine-to-assignment junction tables (i.e. which specific
+  worker or machine actually got sent) — `job_assignments.id` is a
+  stable PK a future table can reference, but that table doesn't exist
+  yet.
+- The spatial "providers within X km of a job" query — `geography(Point,
+  4326)` columns and GiST indexes exist on `provider_profiles`,
+  `machines`, and `farm_jobs` for this, but no query/matching logic.
+- Provider-side status updates on `job_assignments` (e.g. marking their
+  own work complete) — update is job-owner-only for now.
+
 ## Environment variables
 
 All access goes through `src/lib/env.ts`, which throws a clear error if a
@@ -204,8 +302,10 @@ variable is missing rather than silently using `undefined`. Don't read
 
 ## Explicitly not decided yet
 
-No job/machinery/matching schema, no marketplace logic, no
-payments/messaging integration. Auth and the base user profile
-(`public.profiles`) exist as of Phase 2 — see "Auth and user identity"
-above. These remaining items are scoped to future phases and should not
-be anticipated speculatively in this codebase.
+No matching algorithm, no payments, no messaging, no notifications, no
+admin functionality, and no marketplace UI of any kind (job creation
+form, provider dashboard, offer UI, ...). Auth (Phase 2) and the
+marketplace database foundation (Phase 3A) exist — see "Auth and user
+identity" and "Marketplace data model" above. These remaining items are
+scoped to future phases and should not be anticipated speculatively in
+this codebase.
