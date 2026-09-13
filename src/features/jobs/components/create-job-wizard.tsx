@@ -267,7 +267,7 @@ function StepService({
                 update("categoryId", c.id);
                 update("serviceId", "");
               }}
-              className={`rounded-lg border p-3 text-left text-sm transition-colors ${
+              className={`min-h-11 rounded-lg border p-3 text-left text-sm transition-colors ${
                 draft.categoryId === c.id
                   ? "border-primary bg-primary/5 font-medium"
                   : "border-input hover:bg-muted/50"
@@ -291,7 +291,7 @@ function StepService({
                   key={s.id}
                   type="button"
                   onClick={() => update("serviceId", s.id)}
-                  className={`rounded-lg border p-3 text-left text-sm transition-colors ${
+                  className={`min-h-11 rounded-lg border p-3 text-left text-sm transition-colors ${
                     draft.serviceId === s.id
                       ? "border-primary bg-primary/5 font-medium"
                       : "border-input hover:bg-muted/50"
@@ -645,7 +645,7 @@ function StepReview({
         }
       />
       <Badge variant="secondary" className="w-fit">
-        Will be posted immediately
+        Nearby providers will see this right away
       </Badge>
     </div>
   );

@@ -32,11 +32,11 @@ export default async function MyJobsPage() {
       {jobs.length === 0 ? (
         <EmptyState
           icon={Sprout}
-          title="You haven't posted any jobs yet."
+          title="You haven't posted a job yet."
           description="Post your first farm job and providers nearby will be able to respond with offers."
           action={
             <Button asChild>
-              <Link href="/app/jobs/new">Post a Job</Link>
+              <Link href="/app/jobs/new">Post your first job</Link>
             </Button>
           }
         />

@@ -387,6 +387,84 @@ redirects non-farmers, and `create_farm_job` now raises if
 `auth.uid()` isn't a farmer — the same belt-and-suspenders pattern as
 the offer RPCs.
 
+## Marketplace discovery, filtering, and trust (Phase 3D)
+
+**Filters and sorting live inside `discover_jobs()`, not a second
+endpoint or client-side filtering.** The RPC already had to be the
+column allowlist for provider-side job browsing (see "Marketplace UI"
+above) — extending its parameters keeps that the one place deciding
+both *what* a provider may see and *which* rows match their filters,
+rather than opening a second code path that could drift out of sync
+with the privacy rules. All new parameters (`p_service_id`,
+`p_date_from`/`p_date_to`, `p_budget_min`/`p_budget_max`, `p_sort`)
+default to "no filter", and adding them required dropping the old
+2-arg function first (0020) — `CREATE OR REPLACE` on a function with a
+different parameter list creates an overload rather than replacing it,
+which would have made `rpc("discover_jobs", {...})` ambiguous for
+callers passing only the original two arguments.
+
+**Filters are URL search params, parsed server-side.**
+`/app/provider/jobs` reads `searchParams` in the page component,
+`parseJobFilters` (`src/features/provider/job-filters.ts`) validates
+each value against a fixed option list (an unrecognized value silently
+falls back to the default rather than erroring), and
+`resolveDiscoverJobsParams` converts UI values (a distance preset, a
+date preset, a budget bucket) into the plain range values the RPC
+takes. `JobFilters` (client component) only ever pushes a new URL via
+`router.push` — it holds no filter state of its own — so the result
+list is always whatever the server rendered for that exact URL: refresh
+-safe, back/forward-safe, shareable. "This week" is a rolling 7-day
+window from today, not a calendar Mon–Sun range — simpler and more
+useful for farm work.
+
+**Sorting is still plain SQL ordering, not a matching algorithm** — the
+`p_sort` values (`nearest`, `newest`, `budget`, `earliest`) each guard
+one `ORDER BY` key with a `CASE`, so an inactive sort mode's key is
+`null` for every row and drops out without affecting order. The default
+`'recommended'` (and the final tiebreak for every other mode) is
+unchanged from Phase 3B: matching service first, then nearest, then
+soonest, then newest.
+
+**Budget filtering treats an unset budget as "always matches", not
+excluded.** A job with `budget_min`/`budget_max` both null (the farmer
+picked "I'm flexible on price") can't be said to violate a budget range
+we don't know it's outside of, so the overlap test only excludes a job
+when it has an actual stated bound that falls outside the filter.
+
+**New discover_jobs columns are read-only conveniences, not new
+privacy surface**: `updated_at` (posted vs. updated), `my_offer_status`
+(has the calling provider already offered, and what happened), and
+`offer_count` (a bare count, never *who* — a provider gauges
+competition without seeing competitors) are all derived from tables the
+provider could already reach through other allowed paths; nothing new
+is exposed here that RLS wasn't already going to allow.
+`get_offers_for_job` (0021) similarly grew a `service_names` column
+(the offering provider's own active services) for the same reason
+`discover_jobs` already had one — it's aggregated from
+`provider_services`/`services`, both already visible to whoever is
+allowed to call the function.
+
+**Provider trust signals are presentation over existing columns, never
+new ones.** `ProviderTrustSummary`
+(`src/features/provider/components/provider-trust-summary.tsx`) reads
+only `rating_average`/`rating_count`/`completed_jobs_count`/
+`verification_status`, already on `provider_profiles` since Phase 3A —
+there is no review-submission flow and nothing computes or fabricates a
+score. A provider with `rating_count = 0` gets "New provider" instead
+of a fake zero-star display; `verification_status !== 'verified'` gets
+no badge at all rather than a negative "Unverified" one. The same
+component (in `compact` size) backs the desktop offer-comparison table
+(`offer-comparison-table.tsx`, `md:` and up) and the mobile stacked
+`OfferCard`s (below `md:`) — one trust-signal implementation, two
+layouts, rather than a duplicated one.
+
+**Job status now has one icon mapping used everywhere it's shown** —
+`JOB_STATUS_ICON` (`job-status-badge.tsx`) backs both the small
+`JobStatusBadge` (used in job/offer lists) and the larger `JobStatusLine`
+(the prominent status line at the top of a job detail page), so status
+is never communicated by badge color alone and the two never drift
+apart into different icons for the same status.
+
 ## Environment variables
 
 All access goes through `src/lib/env.ts`, which throws a clear error if a
@@ -446,13 +524,17 @@ variable is missing rather than silently using `undefined`. Don't read
 
 ## Explicitly not decided yet
 
-No matching algorithm (relevance in `discover_jobs` is plain SQL
-ordering — matching service, then distance, then soonest scheduled), no
-payments, no real messaging (the Notifications/Alerts nav item is an
-empty placeholder page — no notifications table or delivery mechanism
-exists), no worker/machine-to-assignment allocation, and no admin
+No matching algorithm — `discover_jobs`'s "Recommended" sort and every
+other sort mode are plain, documented SQL ordering (see "Marketplace
+discovery, filtering, and trust" above), never a score or an
+ML-flavored ranking. No payments, no external notification channels
+(SMS/WhatsApp/push/email — the notification system is in-app only, see
+"Notifications" above), no reviews/rating-submission flow (ratings are
+displayed from `provider_profiles` but nothing writes to them from the
+app yet), no worker/machine-to-assignment allocation, and no admin
 functionality. Auth (Phase 2), the marketplace database foundation
-(Phase 3A), and the first farmer↔provider job loop (Phase 3B) exist —
-see "Auth and user identity", "Marketplace data model", and "Marketplace
-UI" above. These remaining items are scoped to future phases and should
-not be anticipated speculatively in this codebase.
+(Phase 3A), the first farmer↔provider job loop (Phase 3B), the
+notification foundation (Phase 3C), and marketplace discovery/filtering/
+trust presentation (Phase 3D) exist — see the sections above. These
+remaining items are scoped to future phases and should not be
+anticipated speculatively in this codebase.
