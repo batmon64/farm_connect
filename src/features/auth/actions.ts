@@ -258,6 +258,17 @@ export async function completeOnboardingAction(
 ): Promise<AuthFormState> {
   if (!env.isSupabaseConfiguredPublic()) return NOT_CONFIGURED_STATE;
 
+  // Echoed back on every error return below so the form can restore
+  // exactly what the user typed instead of re-rendering blank — see
+  // AuthFormState.values.
+  const values = {
+    displayName: String(formData.get("displayName") ?? ""),
+    isFarmer: formData.get("isFarmer") === "on" ? "on" : "",
+    isProvider: formData.get("isProvider") === "on" ? "on" : "",
+    phone: String(formData.get("phone") ?? ""),
+    location: String(formData.get("location") ?? ""),
+  };
+
   const parsed = onboardingSchema.safeParse({
     displayName: formData.get("displayName"),
     isFarmer: formData.get("isFarmer") === "on",
@@ -270,6 +281,7 @@ export async function completeOnboardingAction(
       status: "error",
       message: "Please fix the errors below.",
       fieldErrors: parsed.error.flatten().fieldErrors,
+      values,
     };
   }
 
@@ -279,7 +291,11 @@ export async function completeOnboardingAction(
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      return { status: "error", message: "Your session has expired. Please log in again." };
+      return {
+        status: "error",
+        message: "Your session has expired. Please log in again.",
+        values,
+      };
     }
 
     const { error } = await supabase
@@ -295,12 +311,17 @@ export async function completeOnboardingAction(
       .eq("id", user.id);
 
     if (error) {
-      return { status: "error", message: "Could not save your profile. Please try again." };
+      return {
+        status: "error",
+        message: "Could not save your profile. Please try again.",
+        values,
+      };
     }
   } catch {
     return {
       status: "error",
       message: "Network error. Check your connection and try again.",
+      values,
     };
   }
 
