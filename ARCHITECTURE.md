@@ -823,6 +823,131 @@ with themselves (caught defensively by the self-review `CHECK`
 constraint, but the underlying offer/assignment path that allows a
 provider to bid on their own job is unchanged).
 
+## Investor-grade product polish (Phase 6)
+
+This phase found and fixed real defects rather than restyling working
+UI — the audit was screen-by-screen in a live browser, not a code read,
+which is what surfaced most of these (none were visible from source
+alone).
+
+**The entire site was rendering in the browser's default serif font,
+not Geist Sans.** `globals.css`'s `@theme inline` block wired Tailwind's
+`font-sans` utility to `var(--font-sans)` — a custom property that was
+never defined anywhere else, so it was self-referential and invalid.
+`html { @apply font-sans; }` then resolved to nothing, and every element
+on every page fell back to the browser's UA default (Times New Roman).
+Fixed by pointing it at the actual next/font variable:
+`--font-sans: var(--font-geist-sans);`. This is the single highest-impact
+fix in this phase — it affected literally every screen.
+
+**A brand-new user's first look at their dashboard could be broken
+chrome.** The root layout decided marketing-vs-`/app` chrome by reading
+a `pathname` request header that `src/proxy.ts` set — but it set it on
+the outgoing *response* (`response.headers.set(...)`), which a Server
+Component's `headers()` call never sees (that reads incoming request
+headers). This happened to look correct on a hard page load, because a
+fresh request re-runs the whole chain, but the App Router reuses an
+already-rendered root layout across client-side navigations, so the
+`inApp` value it computed on the *previous* page stuck around. The
+sharpest case: completing onboarding redirects to `/app`, a client-side
+transition from `/onboarding` (`inApp = false`) — so the first-ever
+dashboard view was wrapped in the public marketing header and bottom
+tab bar instead of `AppShell`'s own navigation. Fixed with
+`ChromeSwitcher` (`components/layout/chrome-switcher.tsx`), a client
+component using `usePathname()`, which is reactive to client-side
+navigation in both directions; `src/proxy.ts` no longer sets or needs
+the header at all.
+
+**Onboarding lost your answers if any single field failed validation.**
+React resets uncontrolled form fields once a form action *completes* —
+success or a rejected business-logic result alike, since from React's
+side both are just "the action finished." Verified directly: submitting
+the onboarding form with a filled-in display name, phone, and location
+but no role checkbox checked came back with all three text fields wiped
+to blank, not just the actually-invalid checkbox group. `displayName`
+already avoided this via `defaultValue` (echoing the existing profile
+value); `phone`/`location` had none. Fixed by having
+`completeOnboardingAction` echo every submitted field back in its error
+state (`AuthFormState.values`, a small addition available to any auth
+form that needs it) and having the form use those as
+`defaultValue`/`defaultChecked`. This pattern is worth knowing about for
+any other form built directly on `useActionState` with uncontrolled
+inputs — `submit-offer-form.tsx` has the same shape and was left
+alone this phase since its failure mode (a duplicate-offer rejection)
+is materially rarer than a first-time onboarding checkbox miss.
+
+**Reusable pattern**: `MetricCard`
+(`features/marketplace/components/metric-card.tsx`) replaces a `StatTile`
+that had been independently copy-pasted into both the farmer and
+provider dashboards with identical markup. Every number it's given must
+still come from a real query — this phase didn't touch that; it just
+removed the duplication.
+
+**Provider dashboard gained a primary CTA.** `/app/provider` (the
+"Work" page) had stats and a confirmed-work list but no obvious way to
+actually go find a job — "Available Jobs" was a bare number, not a
+link. Added a `Find Work` button in the same treatment as the farmer
+dashboard's `Post a Job`, linking to `/app/provider/jobs`.
+
+**Public site navigation was doubled up.** `/`, `/farmer`, and
+`/provider` rendered *both* `SiteHeader` (with a `Sheet` menu on mobile
+containing every nav destination plus log in/out) *and* a separate
+fixed bottom tab bar (`MobileTabBar`) repeating a subset of the same
+three destinations. Removed `MobileTabBar` entirely — one nav mechanism
+for a three-page marketing site is enough, and the header's menu is a
+strict superset of what the tab bar offered. The file
+(`components/layout/mobile-tab-bar.tsx`) is deleted, not just
+unmounted, since nothing else referenced it.
+
+**Auth pages had a large dead gap between the card and the page
+bottom** on any viewport taller than the form itself — `AuthShell` was a
+top-anchored flex column with no vertical centering. Given
+`min-h-[70dvh]` and `justify-center` so the card sits in the middle of
+the available height instead of pinned to the top with empty space
+below.
+
+**Demo data / catalogue completeness.** The `service_categories` seed
+(0004) has always included "Transportation" as a category with *zero*
+services under it — a real dead end in the job-posting wizard: picking
+it showed "No services in this category yet." with no way to continue.
+This is catalogue/reference data, not marketplace activity — no
+different in kind from the other five categories' seeded services — so
+filling it in isn't the fabricated-traction/fake-data pattern this
+project avoids elsewhere. Added two real service types
+(`0029_transportation_services.sql`): Produce Transport, Equipment
+Transport.
+
+**Demo/test account convention** (unchanged from earlier phases,
+recorded here since Phase 6 is a good place to make it explicit):
+accounts are created directly via `insert into auth.users (...)` with
+`crypt(password, gen_salt('bf'))` and `email_confirmed_at = now()`,
+bypassing GoTrue's email flow — normal signup hits Supabase's email
+rate limit quickly under repeated testing. This requires setting
+`email_change`/`email_change_token_new`/`email_change_token_current`/
+`phone_change`/`phone_change_token`/`reauthentication_token` to `''`
+rather than leaving them `NULL` — GoTrue's Go code scans these columns
+into non-nullable strings and returns a bare "Database error querying
+schema" (500) on the next password-grant token request if any are
+`NULL`. Every test account created this way is deleted at the end of
+the session (auth.users, profiles, provider_profiles + their owned
+rows, farm_jobs and everything chained from them, notifications) —
+verified empty afterward. There is no separate, permanent "demo
+dataset" seeded into this project; a live demo is expected to use two
+freshly created accounts walked through the real flow, which is also
+what this phase's own testing did.
+
+**Verified live in the browser, not just read as code**: the full
+farmer→provider flow (post a job, receive and accept a real offer,
+start, complete, leave a review) re-run end-to-end after the font and
+chrome fixes, at 375px, 768px, and 1440px; keyboard focus visibility
+spot-checked on the login page (Tailwind `focus-visible:ring-*`, not
+relying on the browser default outline, is visible on tab). No RLS
+policy, RPC, or trigger was touched this phase — every fix here is UI,
+routing/chrome, or additive catalogue data — so no new security testing
+beyond confirming that `services`/`service_categories` still carry only
+the pre-existing "publicly readable, no end-user write policy" RLS
+shape after the new rows were inserted.
+
 ## Environment variables
 
 All access goes through `src/lib/env.ts`, which throws a clear error if a
@@ -854,9 +979,13 @@ variable is missing rather than silently using `undefined`. Don't read
 - Feature-specific composite components (e.g. a job card) live in that
   feature's folder, built out of `components/ui` primitives.
 - Mobile-first: design for the small viewport first, then add `md:`/`lg:`
-  overrides. The app shell uses a bottom tab bar on mobile
-  (`components/layout/mobile-tab-bar.tsx`) and an inline header nav at the
-  `md` breakpoint (`components/layout/site-header.tsx`).
+  overrides. `/app/**` has its own bottom tab bar on mobile, owned by
+  `AppShell` (`features/marketplace/components/app-shell.tsx`), and an
+  inline header nav at the `md` breakpoint. The public marketing site
+  uses a single nav mechanism instead — `SiteHeader`
+  (`components/layout/site-header.tsx`), with its mobile menu in a
+  `Sheet` — see "Investor-grade product polish" (Phase 6) for why a
+  second, separate bottom tab bar was removed from those pages.
 
 ## Naming conventions
 
@@ -887,16 +1016,17 @@ other sort mode are plain, documented SQL ordering (see "Marketplace
 discovery, filtering, and trust" above), never a score or an
 ML-flavored ranking. No payments, no external notification channels
 (SMS/WhatsApp/push/email — the notification system is in-app only, see
-"Notifications" above), no reviews/rating-submission flow (ratings are
-displayed from `provider_profiles` but nothing writes to them from the
-app yet), no worker/machine-to-assignment allocation, and no admin
-functionality. Auth (Phase 2), the marketplace database foundation
-(Phase 3A), the first farmer↔provider job loop (Phase 3B), the
-notification foundation (Phase 3C), marketplace discovery/filtering/
-trust presentation (Phase 3D), and the confirmed→in_progress→completed/
-cancelled job lifecycle (Phase 4) exist — see the sections above. A
-provider cannot cancel a confirmed/in-progress job (only the farmer
-can, by explicit design — see "Job lifecycle"); no payment/commission
-step exists between a job being priced (via the offer) and completed.
-These remaining items are scoped to future phases and should not be
-anticipated speculatively in this codebase.
+"Notifications" above), no review edit/dispute/moderation flow (reviews
+are one-way once submitted — see "Trust & Reputation" above), no
+worker/machine-to-assignment allocation, and no admin functionality.
+Auth (Phase 2), the marketplace database foundation (Phase 3A), the
+first farmer↔provider job loop (Phase 3B), the notification foundation
+(Phase 3C), marketplace discovery/filtering/trust presentation
+(Phase 3D), the confirmed→in_progress→completed/cancelled job lifecycle
+(Phase 4), reviews and reputation (Phase 5), and a UX/UI polish pass
+(Phase 6) exist — see the sections above. A provider cannot cancel a
+confirmed/in-progress job (only the farmer can, by explicit design —
+see "Job lifecycle"); no payment/commission step exists between a job
+being priced (via the offer) and completed. These remaining items are
+scoped to future phases and should not be anticipated speculatively in
+this codebase.
