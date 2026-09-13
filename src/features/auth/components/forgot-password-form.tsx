@@ -43,6 +43,7 @@ export function ForgotPasswordForm() {
           autoFocus
           required
           className="h-11"
+          defaultValue={state.values?.email ?? ""}
           aria-invalid={Boolean(state.fieldErrors?.email)}
         />
         {state.fieldErrors?.email ? (

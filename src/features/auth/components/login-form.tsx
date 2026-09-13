@@ -19,6 +19,17 @@ export function LoginForm({ notice }: { notice?: string }) {
   );
   const [email, setEmail] = useState("");
 
+  // A Server Action round-trip can reset this component's local state
+  // entirely (not just uncontrolled inputs), so re-seed `email` from
+  // what was actually submitted whenever the action returns a new
+  // state carrying it. Adjusted during render (not an effect) per
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  const [prevValues, setPrevValues] = useState(state.values);
+  if (state.values !== prevValues) {
+    setPrevValues(state.values);
+    if (state.values?.email) setEmail(state.values.email);
+  }
+
   const showResend = state.status === "error" && state.message === EMAIL_NOT_CONFIRMED_MESSAGE;
 
   return (

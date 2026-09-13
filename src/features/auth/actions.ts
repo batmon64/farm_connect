@@ -29,6 +29,14 @@ export async function signUpAction(
 ): Promise<AuthFormState> {
   if (!env.isSupabaseConfiguredPublic()) return NOT_CONFIGURED_STATE;
 
+  // Echoed back on every error return below -- see the onboarding form
+  // fix (Phase 6/8): a Server Action round-trip can reset a form's
+  // local state entirely (even a "controlled" input backed by
+  // useState), not just uncontrolled defaultValue fields. Password
+  // fields are deliberately NOT echoed back -- clearing them on error
+  // is normal, acceptable auth UX.
+  const values = { email: String(formData.get("email") ?? "") };
+
   const parsed = signUpSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -39,6 +47,7 @@ export async function signUpAction(
       status: "error",
       message: "Please fix the errors below.",
       fieldErrors: parsed.error.flatten().fieldErrors,
+      values,
     };
   }
 
@@ -55,7 +64,7 @@ export async function signUpAction(
     });
 
     if (error) {
-      return { status: "error", message: mapAuthError(error) };
+      return { status: "error", message: mapAuthError(error), values };
     }
 
     // Supabase returns success with an empty identities array (no error)
@@ -63,7 +72,7 @@ export async function signUpAction(
     // leaking which emails exist. Surface that as an "existing account"
     // error instead of a false "check your email" success.
     if (data.user && data.user.identities && data.user.identities.length === 0) {
-      return { status: "error", message: EXISTING_ACCOUNT_MESSAGE };
+      return { status: "error", message: EXISTING_ACCOUNT_MESSAGE, values };
     }
 
     return {
@@ -74,6 +83,7 @@ export async function signUpAction(
     return {
       status: "error",
       message: "Network error. Check your connection and try again.",
+      values,
     };
   }
 }
@@ -84,6 +94,12 @@ export async function logInAction(
 ): Promise<AuthFormState> {
   if (!env.isSupabaseConfiguredPublic()) return NOT_CONFIGURED_STATE;
 
+  // Echoed back on every error return -- same fix as signUpAction; a
+  // wrong password is the single most common login error, and losing
+  // the typed email along with it is a real friction point, including
+  // live in front of an investor.
+  const values = { email: String(formData.get("email") ?? "") };
+
   const parsed = logInSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -93,6 +109,7 @@ export async function logInAction(
       status: "error",
       message: "Please fix the errors below.",
       fieldErrors: parsed.error.flatten().fieldErrors,
+      values,
     };
   }
 
@@ -102,7 +119,7 @@ export async function logInAction(
     const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
     if (error) {
-      return { status: "error", message: mapAuthError(error) };
+      return { status: "error", message: mapAuthError(error), values };
     }
 
     const { profile } = await getCurrentProfile(supabase);
@@ -111,6 +128,7 @@ export async function logInAction(
     return {
       status: "error",
       message: "Network error. Check your connection and try again.",
+      values,
     };
   }
 
@@ -141,6 +159,8 @@ export async function forgotPasswordAction(
 ): Promise<AuthFormState> {
   if (!env.isSupabaseConfiguredPublic()) return NOT_CONFIGURED_STATE;
 
+  const values = { email: String(formData.get("email") ?? "") };
+
   const parsed = forgotPasswordSchema.safeParse({
     email: formData.get("email"),
   });
@@ -149,6 +169,7 @@ export async function forgotPasswordAction(
       status: "error",
       message: "Please fix the errors below.",
       fieldErrors: parsed.error.flatten().fieldErrors,
+      values,
     };
   }
 
@@ -170,6 +191,7 @@ export async function forgotPasswordAction(
     return {
       status: "error",
       message: "Network error. Check your connection and try again.",
+      values,
     };
   }
 
