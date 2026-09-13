@@ -600,6 +600,229 @@ needs; a genuine append-only audit trail would only earn its
 complexity if a future phase needed multiple events of the same kind
 (e.g. reschedules).
 
+## Trust & Reputation (Phase 5)
+
+**Review model.** One new table, `reviews`, carries a review from a
+completed job rather than from two bare user ids:
+
+```
+reviews (id, job_id, assignment_id, reviewer_id, reviewee_id,
+         rating 1-5, comment ≤500 chars, created_at)
+```
+
+`job_id` and `assignment_id` are both stored (not derivable from each
+other alone without a join) so a review is directly queryable either
+way and RLS/eligibility checks don't need an extra hop. No `direction`
+column exists: with exactly two possible reviewers per assignment (the
+job's farmer and its assigned provider), the unique constraint
+`(assignment_id, reviewer_id)` already means "one review per reviewer
+per assignment," which is equivalent to "one review per direction."
+`reviewer_id`/`reviewee_id` reference `profiles`, not `provider_profiles`
+— a farmer has no provider row, so reviewing a provider means storing
+the provider's `profile_id`, not their `provider_profiles.id`.
+
+**Eligibility is enforced entirely inside `submit_review(p_assignment_id,
+p_rating, p_comment)`**, a `SECURITY DEFINER` RPC — never by RLS on
+`reviews` (there is no `INSERT` policy on the table at all; every
+`INSERT` must go through this function). It independently re-derives,
+from the assignment and job rows, everything the client could otherwise
+lie about:
+
+- the assignment exists and its job is `farm_jobs.status = 'completed'`
+  (not `job_assignments.status`, which — per the Phase 4 decision above
+  — stays `'assigned'` forever and carries no lifecycle information)
+- the caller is either the job's `created_by` (farmer) or the
+  assignment's provider's `profile_id` — anyone else is rejected
+- the reviewee is deterministically the *other* party (farmer calling
+  → reviewee is the provider; provider calling → reviewee is the
+  farmer), never a client-supplied id
+- rating is an integer 1-5 and comment is ≤500 chars, checked in the
+  function *and* again by the table's `CHECK` constraints as a second
+  layer
+- one review per (assignment, reviewer) — the second attempt hits the
+  unique constraint, caught and re-raised as "you have already
+  reviewed this job"
+
+`created_at`/`job_id`/`assignment_id`/`reviewer_id`/`reviewee_id` are
+all set server-side; the client sends only `assignment_id`, `rating`,
+`comment`.
+
+**Self-review defense in depth.** Nothing in this phase stops a user
+from also holding a `provider_profiles` row and being offered/accepted
+on their own job (that gap predates Phase 5 and is out of scope for it
+to close). `submit_review` would compute `reviewee_id = v_caller` in
+that case, so a table-level `CHECK (reviewer_id <> reviewee_id)`
+constraint exists specifically to catch it — verified directly: a
+farmer holding their own provider profile, self-assigned and completed,
+is rejected with a `CHECK` violation when attempting to review "the
+other side." The generic error-mapping fallback in the server action
+(anything not explicitly matched → "Could not submit your review.")
+means this still never surfaces a raw constraint-violation message to
+the browser.
+
+**Rating aggregation is fully database-controlled.** An `AFTER INSERT
+ON reviews` trigger (`update_provider_rating_aggregate`) recomputes
+`provider_profiles.rating_average`/`rating_count` from a full `count`/
+`avg` over all of that provider's reviews — not an incremental
+`+= 1` — specifically to avoid floating-point drift accumulating over
+many inserts; the full recount is cheap at review-table volumes and
+correctness mattered more than shaving a read. `rating_average` is
+rounded to 2 decimal places at write time (`round(avg(rating)::numeric,
+2)`) so display never needs client-side rounding logic, matching what
+`provider_profiles.rating_average numeric(3,2)` (0004) already only
+had room for. A second `AFTER UPDATE OF status ON farm_jobs` trigger
+(`increment_provider_completed_jobs`) increments
+`provider_profiles.completed_jobs_count` on every transition *to*
+`'completed'`. This fixes a real pre-existing gap found by grepping the
+codebase before writing it: **nothing had ever written to
+`completed_jobs_count` in any prior phase** — the column existed since
+0004, was read everywhere provider trust is displayed, but was always
+`0`. Both trigger functions are `SECURITY DEFINER` with `EXECUTE`
+explicitly revoked from `public`/`anon`/`authenticated` — PostgREST
+otherwise auto-exposes any public-schema function as a callable RPC,
+and a no-op-when-called-directly trigger function has no business being
+a public endpoint even though calling it directly is harmless (it only
+ever reads `NEW`, which doesn't exist outside a real trigger firing).
+
+**Reputation columns are further protected against direct writes.**
+Security testing surfaced that the pre-existing "provider profiles are
+updatable by owner" policy (0004) has no column restriction, so a
+provider could `PATCH /rest/v1/provider_profiles` and set their own
+`rating_average`/`rating_count`/`completed_jobs_count` to anything,
+completely bypassing both triggers above. Fixed with a `BEFORE UPDATE`
+trigger (`protect_provider_reputation_columns`) that resets those three
+columns to their `OLD` values whenever `pg_trigger_depth() <= 1` — i.e.
+whenever the `UPDATE` originated directly from a client statement
+rather than from inside another trigger's cascade. The two aggregate
+triggers above call their `UPDATE` from inside an `AFTER INSERT`/`AFTER
+UPDATE` trigger body, so `pg_trigger_depth()` is 2+ there and their
+writes pass through untouched; a direct client `PATCH` is depth 1 and
+gets silently reverted. Verified live: a `PATCH` attempting
+`rating_count: 9999, completed_jobs_count: 9999` returns `200` (RLS
+still permits the row-level update) but the response body shows the
+unchanged, trigger-computed values — the attacker gets no error and no
+effect, which is the correct outcome for "don't let the client know
+exactly what's being blocked or how."
+
+**Immutability.** Reviews have no `UPDATE` or `DELETE` policy at all —
+the same pattern used for `notifications` (0017). Once inserted, a
+review cannot be changed or removed by any role short of direct
+database access. This was a deliberate choice, not an oversight: a
+correction mechanism (edit window, dispute flow, moderation) is a
+materially bigger feature than this phase's "fundamental integrity"
+scope, and shipping one-way reviews now doesn't foreclose adding a
+correction path later — it only means the first version has no way to
+fix a fat-fingered rating, which is an acceptable trade for an investor
+demo. Verified directly: a `PATCH`/`DELETE` against `/reviews` as the
+review's own author returns `200` with an empty array (RLS silently
+filters to zero matched rows) — not an error, but also no effect; the
+review is unchanged.
+
+**Privacy.** The public-facing review list (`get_provider_reviews`,
+`SECURITY DEFINER`, `authenticated`-only) never returns
+`reviewer_id`, raw `display_name`, phone, or any other identifying
+column — it computes a `reviewer_label` in SQL before the row ever
+leaves the database: `"First L."` (first word of `display_name` plus
+the first letter of the second word), the single word alone if there's
+no second word, or `"A FarmConnect user"` if `display_name` is null or
+blank. There is no code path where a full name, id, or contact detail
+reaches this endpoint's response. The table's own `SELECT` policy is
+separately scoped: a signed-in user sees a review if they're the
+reviewer or reviewee (so they can always see their own activity) or if
+the reviewee is a `provider_profiles` row (so any signed-in marketplace
+participant can browse a provider's public reviews) — an anonymous
+visitor sees none, and a farmer's reviews are not independently
+browsable by strangers the way a provider's are.
+
+**Farmer reputation has no stored aggregate.** No columns were added
+to `profiles` for a farmer-side rating average or review count. There
+is currently no farmer-facing profile screen that could display one,
+and building one solely to host a number nobody asked to see would be
+exactly the kind of overbuilding this phase was scoped against. The
+data model doesn't block adding it later — `reviews.reviewee_id`
+already captures every provider→farmer review — a future phase would
+only need to add the two aggregate columns and a third trigger
+mirroring `update_provider_rating_aggregate`, keyed on `reviewee_id`
+matching a `profiles` row that isn't a provider.
+
+**UX.** `ReviewForm` renders on the completed-job detail page (both the
+farmer's `/app/jobs/[jobId]` and the provider's
+`/app/provider/jobs/[jobId]`) directly below the lifecycle actions,
+conditioned on `job.status === 'completed'` — there's no separate
+"leave a review" page to navigate to. Star selection
+(`StarRatingInput`) uses five native `<input type="radio" name="rating">`
+elements, each visually hidden (`sr-only`) inside its own `<label>`
+wrapping a Lucide star icon; this is a deliberate choice to get
+keyboard operability (Tab into the group, arrow keys move the
+selection) and screen-reader semantics (each label has an `sr-only`
+"N stars" name) from native browser radio-group behavior rather than a
+hand-rolled `role="radiogroup"`/keydown implementation — verified
+directly with real arrow-key presses in a live session, confirming
+both focus and the checked value move together. Whether the current
+user already reviewed a given assignment is resolved server-side
+(`getMyReviewForAssignment`, a plain `select` scoped by RLS to the
+caller's own reviews) and passed into the page as `existingReview`; the
+form renders a "✓ Review submitted" card with the stored stars and
+comment instead of the input whenever that value is non-null, so the
+already-reviewed state can never be spoofed by client-side state
+alone. No new notification type was added for "please review" — the
+existing `job_completed` notification from Phase 4 already routes both
+parties to the exact job detail page the review form lives on, so
+adding a second notification for the same event would be pure spam
+without adding a new destination.
+
+**Reviewed live via the browser**, not just via the RPC directly: full
+star click interaction, keyboard rating selection, comment entry with
+the 500-char counter, submission, and the resulting "✓ Review
+submitted" card, at both tablet (768px) and mobile (375px, confirmed
+zero horizontal overflow) widths — plus the provider-profile reviews
+list and the offer-comparison trust column at the same breakpoints.
+
+**Security regression testing** (all 16 required attack scenarios,
+against real test accounts and RPC/REST calls, not just code review):
+
+| # | Attack | Result |
+|---|---|---|
+| 1 | Farmer reviews assigned provider after completion | ✅ allowed |
+| 2 | Provider reviews assigned farmer after completion | ✅ allowed |
+| 3 | Farmer reviews before completion | ❌ rejected — "job is not completed yet" |
+| 4 | Provider reviews before completion | ❌ rejected — "job is not completed yet" |
+| 5 | Farmer reviews an unrelated provider/job | ❌ rejected — "not authorized" |
+| 6 | Provider reviews an unrelated farmer/job | ❌ rejected — "not authorized" |
+| 7 | Self-review (dual-role self-assigned job) | ❌ rejected — `reviews_no_self_review` `CHECK` |
+| 8 | Duplicate review, same assignment/direction | ❌ rejected — unique-constraint → "already reviewed" |
+| 9 | Anonymous submits a review | ❌ rejected — `401`, `EXECUTE` not granted to `anon` |
+| 10/11 | Direct `POST /reviews` with a forged `reviewer_id`/`reviewee_id` | ❌ rejected — `403`, no `INSERT` policy exists |
+| 12 | Direct `PATCH` of `provider_profiles` rating/count columns | ❌ blocked — `200` returned but values silently reverted by trigger |
+| 13 | `PATCH /reviews` to alter a review | ❌ no-op — `200`, empty result, row unchanged (no `UPDATE` policy) |
+| 14 | `DELETE /reviews` to remove a review | ❌ no-op — `200`, empty result, row still present (no `DELETE` policy) |
+| 15 | Rating of `0` or `6` | ❌ rejected — "rating must be between 1 and 5" |
+| 16 | Comment over 500 characters | ❌ rejected — "comment is too long" |
+
+**Advisors.** `function_search_path_mutable` was raised against the new
+`protect_provider_reputation_columns` trigger function (missing `set
+search_path = public`, unlike every other function this phase) and
+fixed immediately. The unindexed-FK finding against `reviews.reviewer_id`
+was fixed with an index. Remaining findings after both fixes are
+pre-existing and out of scope for this phase: the marketplace's
+long-standing intentionally-public RPCs (`discover_jobs`,
+`accept_job_offer`, etc., all deliberately callable by `anon`/
+`authenticated`, unchanged since earlier phases), leaked-password
+protection (an account-security toggle unrelated to reviews), and
+`unused_index` (expected `INFO`-level noise on a low-traffic dev
+project — flags the FK indexes this phase intentionally added, among
+others).
+
+**Deferred / explicitly out of scope for this phase**: any review
+edit/dispute/correction flow, review moderation or reporting, fake- or
+bot-review detection beyond the structural anti-gaming checks above,
+a farmer-facing profile/reputation screen, weighting or decay in the
+rating average (it's a flat mean), and fixing the pre-existing gap that
+lets a user hold both a farmer and a provider identity and transact
+with themselves (caught defensively by the self-review `CHECK`
+constraint, but the underlying offer/assignment path that allows a
+provider to bid on their own job is unchanged).
+
 ## Environment variables
 
 All access goes through `src/lib/env.ts`, which throws a clear error if a
