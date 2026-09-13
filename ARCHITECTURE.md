@@ -1239,6 +1239,138 @@ formal accessibility audit beyond the spot checks above, a wider
 responsive sweep across every screen (only a sample was checked), and
 the leaked-password-protection toggle.
 
+## Final QA, Accessibility & Demo Hardening (Phase 9)
+
+A closing QA pass addressing the specific gaps Phase 8 flagged as open:
+responsive coverage was sampled rather than exhaustive, accessibility
+was only lightly checked, leaked-password protection was unverified,
+and neither concurrent offer acceptance nor concurrent lifecycle
+transitions had been race-tested.
+
+**Responsive sweep.** Every route Phase 8 listed as untested — all
+marketing, auth, onboarding, farmer, and provider screens, plus the
+provider profile's five tabs (Business/Services/Machines/Team/Hours)
+— was checked at 375/768/1440px via `document.documentElement
+.scrollWidth` vs `clientWidth` (not screenshots, which this session's
+tooling can render at a misleading zoom level). Zero horizontal
+overflow anywhere. No responsive fixes were needed.
+
+**Accessibility audit.** A code-level review (Radix's own primitives —
+Dialog, Tabs — are accessible by default and were only checked for
+correct *usage*, not re-audited) found three real, fixable gaps, now
+fixed:
+- **No `<h1>` on `/login`, `/signup`, `/onboarding`, `/forgot-password`,
+  `/reset-password`, `/auth/error`** — all six route through
+  `AuthShell`, which rendered its page title as a `CardTitle` (a
+  `<div>`), not a heading. `AuthShell` now renders a real `<h1>`.
+- **No `aria-describedby` anywhere in the codebase** linking a field's
+  visible validation error to the input it describes — `aria-invalid`
+  told a screen reader a field was wrong, but never *why*. Fixed
+  across all nine components using the `fieldErrors` pattern (login,
+  signup, forgot-password, reset-password, and onboarding forms; the
+  provider-profile, account-profile, and machine forms; the review
+  form), each error `<p>` given a stable id and each input/checkbox
+  group an `aria-describedby` pointing at it (or at a hint, where one
+  exists, when there's no error).
+- **Review form's comment `<Textarea>` had no label** — added a
+  visually-hidden `<Label>` (the placeholder already conveys it
+  visually).
+
+Buttons-vs-links usage, Dialog titles, status-badge color+icon+text
+pairing, and landmark (`<main>`) structure were all already clean —
+confirmed, not touched.
+
+**Supabase Auth: leaked-password protection.** Investigated whether
+the connected Supabase MCP tooling (project/migration/SQL/advisor/
+branch management — the same tools used throughout this document)
+exposes this Auth setting. It does not — there is no
+config-management tool in the connected toolset, and the setting is
+not stored in a queryable `auth` schema table on hosted Supabase (it's
+Management-API/Dashboard-only). No workaround was attempted, per
+instruction. **This remains a manual step**: Dashboard → Authentication
+→ Providers → Email → enable "Leaked password protection" (checks
+against HaveIBeenPwned).
+
+**Race-condition testing.** Ran real concurrent requests against the
+live Supabase project (not simulated) — two simultaneous
+`accept_job_offer` calls for competing offers on one job, and four
+paired concurrent `transition_job_status` calls (start+start,
+complete+complete, start+cancel, complete+cancel) — using separate
+provider/farmer JWTs via direct REST calls. Every pair produced
+exactly one winner and one clean rejection, with no partial or
+inconsistent state:
+- Offer acceptance: the loser failed with a `23505` unique-constraint
+  violation on `job_assignments_single_active_per_job` (HTTP 409); the
+  winner's own transaction atomically rejected the competing offer.
+  Final state: exactly one `accepted` offer, one assignment, job
+  `confirmed`, one notification.
+- Lifecycle transitions: `transition_job_status` takes `select ... for
+  update` on the job row before validating the transition, so a
+  concurrent second call re-reads the already-updated row once the
+  lock releases and correctly fails its own status check (`"job is
+  not in a startable state"`, etc.) rather than racing past it.
+  Confirmed for all four pairings.
+- Also verified duplicate-submission protection on `submit_job_offer`
+  (`job_offers_one_pending_per_provider_job` unique constraint) and
+  `submit_review` ("you have already reviewed this job") the same way.
+
+**No code changes were made here** — the existing row-locking and
+unique-constraint design already handles this correctly, and per
+instruction it wasn't weakened or "simplified" just to make a test
+pass.
+
+**Error handling.** Confirmed (both by reading `actions.ts` across
+`jobs`, `provider`, and `reviews`, and by live-triggering them) that
+every Postgres/RPC error a user could actually hit is caught and
+translated to plain copy before reaching the UI — e.g. the
+`job_assignments_single_active_per_job` constraint becomes "This job
+already has an accepted provider," `not authorized` becomes "You're
+not able to do that for this job." A nonexistent job id and a job the
+current user isn't part of both render the same honest "Page not
+found" (no data leak distinguishing "doesn't exist" from "not yours").
+No raw Postgres errors, UUIDs, or stack traces found reaching the UI
+anywhere checked.
+
+**Double-click / repeated-submit audit.** Every mutating form already
+disables its submit button via `disabled={isPending}` from
+`useActionState` (this was true before this phase). The race-condition
+testing above additionally confirms the *database* — not just the
+button — is what actually prevents duplicate state under real
+concurrency, which is the stronger guarantee. "Mark notification read"
+is a plain idempotent `UPDATE ... SET read = true`, safe by
+construction regardless of repeat clicks.
+
+**Investor-demo happy path.** Ran one complete rehearsal with fresh
+accounts through the real UI end to end: farmer signup → onboarding →
+dashboard → post a job (through the full 7-step wizard) → publish;
+provider signup → onboarding → profile → add a service → discover the
+job (real "Strong match" scoring) → submit an offer; farmer gets a
+notification, clicks through it, compares the offer, accepts it
+(confirmation dialog, phone number unlocks); provider sees the exact
+location unlock, starts the job, completes it; both sides leave a
+review; provider's reputation updates to reflect it live on their own
+profile. No bugs found in this run.
+
+**Copy and demo-data review.** A separate investor-copy pass (landing,
+farmer/provider marketing pages, auth, dashboards, empty states,
+errors, match/verification/trust language) found nothing to change —
+already through a polish pass in Phase 6, still holds: no fabricated
+metrics, no "AI" claims, "Verified" gated strictly on
+`verification_status`. Demo-data decision unchanged from Phase 8: no
+permanent seed data created; the product's honest empty states ("No
+matching jobs nearby," "New provider · No reviews yet") are the right
+call for an early-stage demo.
+
+**Code sweep.** No `console.log`, `TODO`/`FIXME`, stray test files, or
+hardcoded secrets found; `.gitignore` correctly excludes `.env*` and
+only `.env.example` is tracked. One dead file removed:
+`src/components/ui/radio-group.tsx` (a shadcn-generated primitive that
+was never imported anywhere).
+
+**Test data.** Every test account and its jobs/offers/assignments/
+reviews created during this phase's testing were deleted before
+finishing — verified 0 rows remaining under each pattern used.
+
 ## Environment variables
 
 All access goes through `src/lib/env.ts`, which throws a clear error if a
