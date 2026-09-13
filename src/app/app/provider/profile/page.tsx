@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/features/auth/profile";
+import { LogoutButton } from "@/features/auth/components/logout-button";
+import { Button } from "@/components/ui/button";
 import {
   getMyProviderProfile,
   listMyAvailability,
@@ -108,6 +111,22 @@ export default async function ProviderProfilePage() {
           </Tabs>
         </>
       )}
+
+      <Card>
+        <CardContent className="flex items-center justify-between gap-3 pt-5">
+          <div>
+            <p className="font-medium">Account settings</p>
+            <p className="text-muted-foreground text-sm">
+              Update your name, phone, and location.
+            </p>
+          </div>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/app/profile">Open</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <LogoutButton variant="outline" />
     </div>
   );
 }
