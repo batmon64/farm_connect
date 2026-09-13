@@ -20,7 +20,7 @@ export function AuthShell({
   footer?: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto flex w-full max-w-sm flex-col gap-6 px-4 py-12">
+    <div className="mx-auto flex min-h-[70dvh] w-full max-w-sm flex-col justify-center gap-6 px-4 py-12">
       <Link
         href="/"
         className="text-muted-foreground hover:text-foreground mx-auto flex items-center gap-2 text-sm"

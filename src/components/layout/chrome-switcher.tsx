@@ -16,12 +16,10 @@ import { usePathname } from "next/navigation";
 export function ChromeSwitcher({
   header,
   footer,
-  mobileTabBar,
   children,
 }: {
   header: React.ReactNode;
   footer: React.ReactNode;
-  mobileTabBar: React.ReactNode;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -32,9 +30,8 @@ export function ChromeSwitcher({
   return (
     <>
       {header}
-      <main className="flex-1 pb-16 md:pb-0">{children}</main>
+      <main className="flex-1">{children}</main>
       {footer}
-      {mobileTabBar}
     </>
   );
 }
