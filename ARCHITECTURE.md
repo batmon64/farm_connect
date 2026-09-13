@@ -1158,6 +1158,87 @@ job" (the existing pull/browse model via `discover_jobs` is
 unchanged); skill-level worker matching; a machine-type taxonomy to
 replace free-text comparison.
 
+## Investor Demo Readiness Audit (Phase 8)
+
+A production-grade audit of the existing product ahead of a live investor
+demo — no new features (no payments, chat, AI matching, or admin
+dashboards), just correctness, security, and polish on what Phase 3–7
+already built.
+
+**What was audited.** A full farmer + provider lifecycle walkthrough
+through the real UI (not just API calls) with fresh test accounts:
+landing → signup → onboarding → job posting → discovery/matching →
+offer → comparison → acceptance → phone/location unlock → start →
+complete → review → reputation update on both sides. Duplicate-email
+signup, unauthorized direct navigation to protected routes while
+logged out, and logout/back-button behavior were also exercised. A
+real REST-level attack pass ran against the live Supabase project using
+a separate, unrelated authenticated test account and the anon key
+directly (bypassing the app entirely): anonymous/cross-account SELECTs
+against `farm_jobs`, `profiles`, and `provider_profiles`, and forged-
+parameter calls to `accept_job_offer`, `transition_job_status`,
+`submit_review`, `submit_job_offer`, and `get_offers_for_job` against
+resources the attacker didn't own. Every attack was correctly rejected
+— RLS returned zero rows for direct table access, and every RPC raised
+`not authorized`. `get_provider_reviews` and `discover_jobs`'s
+`farmer_locality`/`distance_km` fields were confirmed to expose only
+the intentionally public subset (no phone numbers, no raw coordinates)
+consistent with the privacy model in "Trust & Reputation" (Phase 5) and
+"Marketplace Intelligence & Matching" (Phase 7). The existing
+`SECURITY DEFINER` advisor warnings (the RPCs listed throughout this
+document) were reviewed again and confirmed intentional — no change.
+
+**Fixes made.**
+- **Signup, login, and forgot-password forms lost the typed email on
+  every validation error** (wrong password, weak password, duplicate
+  account, malformed email) — a React 19 behavior where a Server Action
+  round-trip resets local component state on any submission, including
+  `useState`-controlled inputs, not just uncontrolled fields (the
+  onboarding form already worked around this narrower case in Phase 6).
+  Fixed by extending `AuthFormState.values` to echo the submitted email
+  back on every error path and resyncing it client-side
+  (`src/features/auth/actions.ts`, `signup-form.tsx`, `login-form.tsx`,
+  `forgot-password-form.tsx`). Passwords are never echoed back.
+- **`/app/provider/profile` had no logout button and no path to
+  `/app/profile`** — `PROVIDER_NAV` never links there, so a
+  provider-only account had no UI-reachable way to log out or edit
+  their shared name/phone/location. Added an "Account settings" card
+  and a logout button to that page, always rendered regardless of
+  onboarding state.
+- **Redundant per-request work**: `createClient()` and
+  `getCurrentProfile()` were called fresh (a real network round trip
+  each time) in the layout and again in the page on nearly every route.
+  Both are now wrapped in React's `cache()` so one request shares one
+  result; `createClient` had to be cached too, since `getCurrentProfile`'s
+  own cache only dedupes when it receives the same client instance.
+  `/app/provider` also issued one `profiles` query per confirmed/
+  in-progress assignment card instead of a single batched `.in()` query
+  — fixed the same way.
+
+**Not fixed, by design.** Leaked-password-protection (HaveIBeenPwned
+checking) is off in Supabase Auth — a one-setting improvement, but a
+dashboard/config change outside this audit's code scope; flagged for
+the next phase, not silently skipped. The eleven "unused index"
+advisories are expected at current data volume (a handful of demo
+rows) and not evidence of a real query-plan problem — no action taken
+per the standing rule of only adding/removing indexes when `EXPLAIN`
+justifies it.
+
+**Demo data.** No permanent seed data was created. The empty/near-
+empty states already in the product (clean "No matching jobs nearby",
+"New provider · No reviews yet", etc.) are honest and appropriate for
+an early-stage demo; fabricating marketplace activity was explicitly
+out of scope and would work against the "no fabricated traction"
+requirement this audit was run under. If a rehearsed demo script is
+wanted later, that's a product decision for the next phase, not
+something this audit should have created unilaterally.
+
+**Demo-readiness status:** ready for a live walkthrough of the core
+farmer/provider loop described above. Known gaps for a next pass:
+formal accessibility audit beyond the spot checks above, a wider
+responsive sweep across every screen (only a sample was checked), and
+the leaked-password-protection toggle.
+
 ## Environment variables
 
 All access goes through `src/lib/env.ts`, which throws a clear error if a
