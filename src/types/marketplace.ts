@@ -273,6 +273,37 @@ export type Notification = {
   created_at: string;
 };
 
+export const REVIEW_RATING_VALUES = [1, 2, 3, 4, 5] as const;
+export type ReviewRating = (typeof REVIEW_RATING_VALUES)[number];
+
+export const REVIEW_COMMENT_MAX_LENGTH = 500;
+
+/** Mirrors public.reviews (0024). Only ever created via submit_review()
+ * — reviewer_id/reviewee_id/job_id/created_at are always server-derived,
+ * never accepted from the client. Immutable once created (no update/
+ * delete policy exists for any role). */
+export type Review = {
+  id: string;
+  job_id: string;
+  assignment_id: string;
+  reviewer_id: string;
+  reviewee_id: string;
+  rating: ReviewRating;
+  comment: string | null;
+  created_at: string;
+};
+
+/** Row shape returned by get_provider_reviews(...) (0024) — a
+ * privacy-safe reviewer label ("Anil K." style) instead of raw
+ * profile columns. */
+export type ProviderReview = {
+  id: string;
+  rating: ReviewRating;
+  comment: string | null;
+  created_at: string;
+  reviewer_label: string;
+};
+
 /** Row shape returned by get_my_offers() (0011). */
 export type MyOffer = {
   offer_id: string;
