@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
+import { ChromeSwitcher } from "@/components/layout/chrome-switcher";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,14 +22,14 @@ export const metadata: Metadata = {
     "FarmConnect connects farmers with agricultural workers, machinery, and services on demand.",
 };
 
-export default async function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: LayoutProps<"/">) {
   // /app/** builds its own chrome (AppShell) with role-aware navigation —
   // the marketing header/footer/mobile-nav would just double up there.
-  // Server Components have no usePathname(); src/proxy.ts forwards the
-  // path via a response header for exactly this.
-  const pathname = (await headers()).get("x-pathname") ?? "";
-  const inApp = pathname.startsWith("/app");
-
+  // ChromeSwitcher decides which to show client-side (usePathname), since
+  // a server-side pathname check only re-evaluates on a full page load —
+  // the App Router reuses this root layout across client-side
+  // navigations, so a server check left stale chrome on screen after any
+  // redirect into or out of /app (e.g. straight after onboarding).
   return (
     <html
       lang="en"
@@ -37,16 +37,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
-        {inApp ? (
-          children
-        ) : (
-          <>
-            <SiteHeader />
-            <main className="flex-1 pb-16 md:pb-0">{children}</main>
-            <SiteFooter />
-            <MobileTabBar />
-          </>
-        )}
+        <ChromeSwitcher
+          header={<SiteHeader />}
+          footer={<SiteFooter />}
+          mobileTabBar={<MobileTabBar />}
+        >
+          {children}
+        </ChromeSwitcher>
       </body>
     </html>
   );
