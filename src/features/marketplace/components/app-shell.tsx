@@ -25,6 +25,7 @@ const PROVIDER_NAV = [
   { href: "/app/provider/jobs", label: "Jobs", icon: Search },
   { href: "/app/provider/offers", label: "My Offers", icon: FileText },
   { href: "/app/provider", label: "Work", icon: Wrench },
+  { href: "/app/notifications", label: "Alerts", icon: Bell },
   { href: "/app/provider/profile", label: "Profile", icon: User },
 ];
 
@@ -40,7 +41,11 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const inProvider = pathname.startsWith("/app/provider");
+  // A provider-only account has nowhere else to go, so it always gets
+  // the provider nav — including on shared routes like /app/notifications
+  // that aren't under /app/provider. Dual-role and farmer-only accounts
+  // keep the previous path-based switch.
+  const inProvider = isProvider && (!isFarmer || pathname.startsWith("/app/provider"));
   const nav = inProvider ? PROVIDER_NAV : FARMER_NAV;
   const canSwitch = isFarmer && isProvider;
 

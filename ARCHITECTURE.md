@@ -300,6 +300,93 @@ form) — no geocoding/maps dependency. If a user skips it, the relevant
 `geography` column stays null and that record just doesn't participate
 in distance sorting/display; nothing else breaks.
 
+## Notifications (Phase 3C)
+
+**One table, not one per event type.** `public.notifications` (0017) has
+a `type` text column constrained by a `check` to a fixed set
+(`offer_received`, `offer_accepted`, `system`), plus generic
+`related_entity_type`/`related_entity_id` columns instead of per-event
+foreign keys. Adding a future event type is a one-line `check`
+constraint change, not a new table or a client-side union type — see
+`src/types/marketplace.ts`'s `NotificationType`.
+
+**Clients cannot create notifications, full stop.** RLS on the table
+grants only `select` and `update`, both scoped to
+`recipient_id = auth.uid()` — there is no `insert` or `delete` policy at
+any privilege level, so a row can never be created through PostgREST no
+matter what a client sends. The only way a row comes into existence is
+`create_notification(...)`, a `SECURITY DEFINER` function with
+`EXECUTE` revoked from `anon` *and* `authenticated` (0017) — it is only
+reachable from inside another `SECURITY DEFINER` function already
+running as the table owner, i.e. `submit_job_offer` and
+`accept_job_offer`.
+
+**This forced `accept_job_offer` to become `SECURITY DEFINER` too**
+(0018) — it was `SECURITY INVOKER` since 0014, which worked fine when
+its only job was inserting `job_assignments` under RLS. Once it needed
+to call the locked-down `create_notification`, INVOKER meant the call
+ran as the calling farmer, who (correctly) has no grant on that
+function, and every accept failed with a permission error. Making it
+DEFINER meant the `job_assignments` "insertable by job owner" RLS check
+it had relied on no longer ran, so the function now re-checks
+`farm_jobs.created_by = auth.uid()` explicitly before writing anything
+— the same "SECURITY DEFINER re-checks authorization inside the
+function body" pattern `submit_job_offer` already used. Both
+`submit_job_offer` and `accept_job_offer` being `SECURITY DEFINER` and
+callable by `authenticated` is an intentional, expected Supabase
+advisor finding (same category as the `owns_*`/discovery-RPC exposures
+documented above), not a gap to fix.
+
+**Event generation lives inside the write RPCs, not the client.**
+`submit_job_offer` notifies the job's farmer (`offer_received`);
+`accept_job_offer` notifies the accepted provider (`offer_accepted`).
+Both resolve the recipient and a human-readable title/body from data
+already in scope (job title, provider business name) and call
+`create_notification` with `related_entity_type = 'job'` — there is no
+notification-sending code anywhere in `src/`.
+
+**Unread count is fetched server-side, not polled.** `/app/layout.tsx`
+calls `getUnreadNotificationCount` once per request and passes it into
+`AppShell` as a prop; the bell badge updates on the next navigation or
+revalidation, not in real time. This is deliberate — no client-side
+polling loop or realtime subscription that depends on a browser tab
+staying open. `revalidatePath` on the relevant routes after
+mark-as-read keeps it from feeling stale in normal use.
+
+**Click-through has no route for a provider-side confirmed job.**
+`discover_jobs` (the RPC backing `/app/provider/jobs/[jobId]`) only
+returns `posted`-family jobs, so an `offer_accepted` notification can't
+deep-link to a per-job provider page — `notificationHref` in
+`src/features/notifications/queries.ts` routes it to `/app/provider`
+(the Work list) instead. `offer_received` deep-links to
+`/app/jobs/[jobId]` normally, since the farmer's job detail page has no
+such gap.
+
+**The provider nav needed a fifth item it didn't have.** Before this
+phase, `PROVIDER_NAV` in `app-shell.tsx` had no notifications entry at
+all — providers received notifications with no in-app way to reach
+`/app/notifications`. Adding the link exposed a second, sharper bug:
+`AppShell` picked farmer vs. provider nav purely from
+`pathname.startsWith("/app/provider")`, so a provider-only account
+visiting the (shared, non-`/app/provider/**`) notifications route would
+have silently flipped to the farmer nav. The check is now
+`isProvider && (!isFarmer || pathname.startsWith("/app/provider"))` — a
+provider-only account always gets the provider nav; dual-role and
+farmer-only accounts keep the previous path-based behavior.
+
+**A provider-only account could post a farm job.** Found while
+end-to-end testing the notification flow with two fresh test accounts:
+`/app/jobs/new` had no role guard — unlike `/app/provider/**`, which
+`layout.tsx` redirects away from non-providers — and `create_farm_job`
+never checked `profiles.is_farmer` either, so hitting the route
+directly let a provider-only account post a job under its own id. RLS
+still scoped the resulting rows correctly (nothing leaked to the wrong
+party), but a provider appearing as a job's farmer is a data-integrity
+bug, not just a missing redirect. Fixed at both layers (0019): the page
+redirects non-farmers, and `create_farm_job` now raises if
+`auth.uid()` isn't a farmer — the same belt-and-suspenders pattern as
+the offer RPCs.
+
 ## Environment variables
 
 All access goes through `src/lib/env.ts`, which throws a clear error if a
