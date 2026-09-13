@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AcceptOfferButton } from "./accept-offer-button";
+import { MatchTierBadge } from "@/features/marketplace/components/match-badges";
 import {
   formatDateTime,
   formatDistance,
@@ -18,8 +19,10 @@ import {
 import type { OfferForJob } from "@/types/marketplace";
 
 /** Desktop comparison table — md breakpoint and up. Every value here is
- * real data already returned by get_offers_for_job; there is no
- * synthesized "match score" column. */
+ * real data already returned by get_offers_for_job — rows already
+ * arrive best-match-first (see the RPC's ORDER BY); the Match column
+ * just makes that ordering visible, it isn't a separate client-side
+ * ranking. */
 export function OfferComparisonTable({
   offers,
   jobId,
@@ -35,6 +38,7 @@ export function OfferComparisonTable({
         <TableHeader>
           <TableRow>
             <TableHead>Provider</TableHead>
+            <TableHead>Match</TableHead>
             <TableHead>Trust</TableHead>
             <TableHead>Distance</TableHead>
             <TableHead className="text-right">Price</TableHead>
@@ -71,6 +75,9 @@ export function OfferComparisonTable({
                       </Badge>
                     ) : null}
                   </div>
+                </TableCell>
+                <TableCell>
+                  <MatchTierBadge tier={offer.match_tier} />
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-1 text-xs">

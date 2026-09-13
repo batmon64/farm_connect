@@ -2,6 +2,7 @@ import { Star, MapPin, Clock, IndianRupee, CheckCircle2, BadgeCheck } from "luci
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AcceptOfferButton } from "./accept-offer-button";
+import { MatchTierBadge, MatchFactList } from "@/features/marketplace/components/match-badges";
 import {
   formatDateTime,
   formatDistance,
@@ -29,12 +30,15 @@ export function OfferCard({
       <CardContent className="flex flex-col gap-3 pt-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="flex items-center gap-1.5 font-medium">
-              {providerName}
-              {offer.verification_status === "verified" ? (
-                <BadgeCheck className="text-primary size-4" aria-label="Verified provider" />
-              ) : null}
-            </h3>
+            <div className="mb-1 flex items-center gap-2">
+              <h3 className="flex items-center gap-1.5 font-medium">
+                {providerName}
+                {offer.verification_status === "verified" ? (
+                  <BadgeCheck className="text-primary size-4" aria-label="Verified provider" />
+                ) : null}
+              </h3>
+              <MatchTierBadge tier={offer.match_tier} />
+            </div>
             <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               {offer.rating_count > 0 ? (
                 <span className="inline-flex items-center gap-1">
@@ -64,6 +68,9 @@ export function OfferCard({
                 ))}
               </div>
             ) : null}
+            <div className="mt-1.5">
+              <MatchFactList facts={offer} />
+            </div>
           </div>
           {offer.status === "accepted" ? (
             <Badge>
