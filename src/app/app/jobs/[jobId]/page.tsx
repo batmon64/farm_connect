@@ -1,18 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Calendar, Clock, IndianRupee, Phone, User, Inbox } from "lucide-react";
+import { Calendar, Clock, IndianRupee, Phone, User, Inbox, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getJobDetail, getOffersForJob, getAcceptedAssignmentForJob } from "@/features/jobs/queries";
-import { JobStatusBadge } from "@/features/jobs/components/job-status-badge";
+import { JobStatusLine } from "@/features/jobs/components/job-status-line";
 import { OfferCard } from "@/features/jobs/components/offer-card";
+import { OfferComparisonTable } from "@/features/jobs/components/offer-comparison-table";
 import { EmptyState } from "@/features/marketplace/components/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  formatBudget,
-  formatDate,
-  formatDateTime,
-  formatDuration,
-} from "@/features/marketplace/format";
+import { formatBudget, formatDateTime, formatDuration } from "@/features/marketplace/format";
 
 export const metadata: Metadata = { title: "Job details — FarmConnect" };
 
@@ -32,7 +28,12 @@ export default async function JobDetailPage({
     job.status
   );
 
-  const assignment = isConfirmed ? await getAcceptedAssignmentForJob(supabase, jobId) : null;
+  const [assignmentResult, farmerProfileResult] = await Promise.all([
+    isConfirmed ? getAcceptedAssignmentForJob(supabase, jobId) : Promise.resolve(null),
+    supabase.from("profiles").select("location").eq("id", job.created_by).maybeSingle(),
+  ]);
+  const assignment = assignmentResult;
+  const locality = farmerProfileResult.data?.location ?? null;
 
   let providerContact: { display_name: string | null; phone: string | null } | null = null;
   if (assignment?.provider_profiles?.profile_id) {
@@ -48,12 +49,15 @@ export default async function JobDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">{job.title}</h1>
-          <p className="text-muted-foreground text-sm">Posted {formatDate(job.created_at)}</p>
-        </div>
-        <JobStatusBadge status={job.status} />
+      <div className="flex flex-col gap-1.5">
+        <h1 className="text-xl font-semibold">{job.title}</h1>
+        {locality ? (
+          <p className="text-muted-foreground inline-flex items-center gap-1 text-sm">
+            <MapPin className="size-3.5" aria-hidden />
+            {locality}
+          </p>
+        ) : null}
+        <JobStatusLine status={job.status} />
       </div>
 
       <Card>
@@ -107,39 +111,56 @@ export default async function JobDetailPage({
       {isConfirmed && assignment ? (
         <Card className="border-primary">
           <CardContent className="flex flex-col gap-3 pt-5">
-            <h2 className="font-medium">Confirmed provider</h2>
-            <p className="flex items-center gap-2 text-sm">
-              <User className="size-4" aria-hidden />
-              {assignment.provider_profiles?.business_name || providerContact?.display_name || "Provider"}
+            <p className="text-primary inline-flex items-center gap-1.5 text-sm font-medium">
+              ✓ Job confirmed
             </p>
+            <div>
+              <p className="text-muted-foreground text-xs">Provider</p>
+              <p className="flex items-center gap-2 text-sm font-medium">
+                <User className="size-4" aria-hidden />
+                {assignment.provider_profiles?.business_name || providerContact?.display_name || "Provider"}
+              </p>
+            </div>
             {providerContact?.phone ? (
-              <a
-                href={`tel:${providerContact.phone}`}
-                className="text-primary flex items-center gap-2 text-sm underline underline-offset-4"
-              >
-                <Phone className="size-4" aria-hidden />
-                {providerContact.phone}
-              </a>
+              <div>
+                <p className="text-muted-foreground text-xs">Phone</p>
+                <a
+                  href={`tel:${providerContact.phone}`}
+                  className="text-primary flex items-center gap-2 text-sm underline underline-offset-4"
+                >
+                  <Phone className="size-4" aria-hidden />
+                  {providerContact.phone}
+                </a>
+              </div>
+            ) : null}
+            {job.scheduled_start ? (
+              <div>
+                <p className="text-muted-foreground text-xs">Scheduled</p>
+                <p className="text-sm font-medium">{formatDateTime(job.scheduled_start)}</p>
+              </div>
             ) : null}
           </CardContent>
         </Card>
       ) : (
         <div className="flex flex-col gap-3">
           <h2 className="font-medium">
-            Offers {offers.length > 0 ? `(${offers.length})` : ""}
+            {offers.length > 0 ? `${offers.length} offer${offers.length === 1 ? "" : "s"} received` : "Offers"}
           </h2>
           {offers.length === 0 ? (
             <EmptyState
               icon={Inbox}
-              title="No offers yet."
-              description="We'll show them here when providers respond."
+              title="Your job is live."
+              description="Providers can now send you offers."
             />
           ) : (
-            <div className="flex flex-col gap-3">
-              {offers.map((offer) => (
-                <OfferCard key={offer.offer_id} offer={offer} jobId={job.id} canAccept />
-              ))}
-            </div>
+            <>
+              <OfferComparisonTable offers={offers} jobId={job.id} canAccept />
+              <div className="flex flex-col gap-3 md:hidden">
+                {offers.map((offer) => (
+                  <OfferCard key={offer.offer_id} offer={offer} jobId={job.id} canAccept />
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}

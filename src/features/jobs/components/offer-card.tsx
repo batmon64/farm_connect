@@ -1,4 +1,4 @@
-import { Star, MapPin, Clock, IndianRupee, CheckCircle2 } from "lucide-react";
+import { Star, MapPin, Clock, IndianRupee, CheckCircle2, BadgeCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AcceptOfferButton } from "./accept-offer-button";
@@ -29,7 +29,12 @@ export function OfferCard({
       <CardContent className="flex flex-col gap-3 pt-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="font-medium">{providerName}</h3>
+            <h3 className="flex items-center gap-1.5 font-medium">
+              {providerName}
+              {offer.verification_status === "verified" ? (
+                <BadgeCheck className="text-primary size-4" aria-label="Verified provider" />
+              ) : null}
+            </h3>
             <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               {offer.rating_count > 0 ? (
                 <span className="inline-flex items-center gap-1">
@@ -49,6 +54,15 @@ export function OfferCard({
                 </span>
               ) : null}
             </div>
+            {offer.service_names && offer.service_names.length > 0 ? (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {offer.service_names.slice(0, 4).map((name) => (
+                  <Badge key={name} variant="outline" className="text-[10px]">
+                    {name}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
           </div>
           {offer.status === "accepted" ? (
             <Badge>
