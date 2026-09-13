@@ -1,17 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, SearchX } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/features/auth/profile";
-import { getMyProviderProfile } from "@/features/provider/queries";
-import { discoverJobs } from "@/features/provider/queries";
+import { getMyProviderProfile, discoverJobs } from "@/features/provider/queries";
+import { listServiceCatalogue } from "@/features/jobs/queries";
 import { DiscoveredJobCard } from "@/features/provider/components/discovered-job-card";
+import { JobFilters } from "@/features/provider/components/job-filters";
 import { EmptyState } from "@/features/marketplace/components/empty-state";
 import { Button } from "@/components/ui/button";
+import { parseJobFilters, resolveDiscoverJobsParams, hasActiveFilters } from "@/features/provider/job-filters";
 
 export const metadata: Metadata = { title: "Find Jobs — FarmConnect" };
 
-export default async function ProviderJobsPage() {
+export default async function ProviderJobsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const supabase = await createClient();
   const { user } = await getCurrentProfile(supabase);
   if (!user) return null;
@@ -35,7 +41,23 @@ export default async function ProviderJobsPage() {
     );
   }
 
-  const jobs = await discoverJobs(supabase);
+  const rawParams = await searchParams;
+  const filterValues = parseJobFilters(rawParams);
+  const resolved = resolveDiscoverJobsParams(filterValues);
+  const filtersActive = hasActiveFilters(filterValues);
+
+  const [jobs, { services }] = await Promise.all([
+    discoverJobs(supabase, undefined, {
+      serviceId: filterValues.service !== "any" ? filterValues.service : null,
+      maxDistanceKm: resolved.maxDistanceKm,
+      dateFrom: resolved.dateFrom,
+      dateTo: resolved.dateTo,
+      budgetMin: resolved.budgetMin,
+      budgetMax: resolved.budgetMax,
+      sort: resolved.sort,
+    }),
+    listServiceCatalogue(supabase),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -46,12 +68,22 @@ export default async function ProviderJobsPage() {
         </p>
       </div>
 
+      <JobFilters filters={filterValues} services={services} />
+
       {jobs.length === 0 ? (
-        <EmptyState
-          icon={Search}
-          title="No open jobs right now."
-          description="Check back soon, or add more services to see a wider range of jobs."
-        />
+        filtersActive ? (
+          <EmptyState
+            icon={SearchX}
+            title="No jobs match these filters."
+            description="Try widening your distance or clearing a filter to see more jobs."
+          />
+        ) : (
+          <EmptyState
+            icon={Search}
+            title="No matching jobs nearby right now."
+            description="Check back soon, or add more services to see a wider range of jobs."
+          />
+        )
       ) : (
         <div className="flex flex-col gap-3">
           {jobs.map((job) => (

@@ -174,9 +174,9 @@ export type JobAssignment = {
   status: AssignmentStatus;
 };
 
-/** Row shape returned by the discover_jobs(...) RPC (0011) — never
- * includes a raw coordinate, only a computed distance + free-text
- * locality from the farmer's own profile. */
+/** Row shape returned by the discover_jobs(...) RPC (0011, extended in
+ * 0020) — never includes a raw coordinate, only a computed distance +
+ * free-text locality from the farmer's own profile. */
 export type DiscoveredJob = {
   id: string;
   title: string;
@@ -188,13 +188,31 @@ export type DiscoveredJob = {
   budget_max: number | null;
   budget_type: string | null;
   created_at: string;
+  updated_at: string;
   locality: string | null;
   distance_km: number | null;
   service_names: string[] | null;
   has_matching_service: boolean;
+  /** The calling provider's own latest offer status on this job, or
+   * null if they haven't made one. */
+  my_offer_status: OfferStatus | null;
+  requirement_summary: string | null;
+  offer_count: number;
 };
 
-/** Row shape returned by get_offers_for_job(...) (0011). */
+export type JobSort = "recommended" | "nearest" | "newest" | "budget" | "earliest";
+
+export type DiscoverJobsFilters = {
+  serviceId?: string | null;
+  maxDistanceKm?: number | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  budgetMin?: number | null;
+  budgetMax?: number | null;
+  sort?: JobSort;
+};
+
+/** Row shape returned by get_offers_for_job(...) (0011, extended in 0021). */
 export type OfferForJob = {
   offer_id: string;
   provider_id: string;
@@ -204,6 +222,7 @@ export type OfferForJob = {
   rating_average: number | null;
   rating_count: number;
   completed_jobs_count: number;
+  service_names: string[] | null;
   distance_km: number | null;
   price: number | null;
   message: string | null;

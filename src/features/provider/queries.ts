@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
+  DiscoverJobsFilters,
   DiscoveredJob,
   Machine,
   MyOffer,
@@ -76,10 +77,20 @@ export async function listMyAvailability(supabase: SupabaseClient, providerId: s
   return (data ?? []) as ProviderAvailability[];
 }
 
-export async function discoverJobs(supabase: SupabaseClient, jobId?: string) {
+export async function discoverJobs(
+  supabase: SupabaseClient,
+  jobId?: string,
+  filters?: DiscoverJobsFilters
+) {
   const { data, error } = await supabase.rpc("discover_jobs", {
     p_job_id: jobId ?? null,
-    p_max_distance_km: null,
+    p_max_distance_km: filters?.maxDistanceKm ?? null,
+    p_service_id: filters?.serviceId ?? null,
+    p_date_from: filters?.dateFrom ?? null,
+    p_date_to: filters?.dateTo ?? null,
+    p_budget_min: filters?.budgetMin ?? null,
+    p_budget_max: filters?.budgetMax ?? null,
+    p_sort: filters?.sort ?? "recommended",
   });
   if (error) throw error;
   return (data ?? []) as DiscoveredJob[];
