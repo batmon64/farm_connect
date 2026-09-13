@@ -948,6 +948,216 @@ beyond confirming that `services`/`service_categories` still carry only
 the pre-existing "publicly readable, no end-user write policy" RLS
 shape after the new rows were inserted.
 
+## Marketplace Intelligence & Matching (Phase 7)
+
+**Purpose.** Before this phase, `discover_jobs()` was filtering
+(job status, distance radius, service, date, budget — all hard
+`WHERE` clauses) plus deterministic tiebreak sorting (a `CASE`-based
+`ORDER BY`: matching-service first, then nearest, then soonest, then
+newest). `get_offers_for_job()` had no ranking at all —
+`created_at desc` only. Neither considered availability, machine/
+worker capability, workload conflicts, or reputation. This phase adds
+those signals as **deterministic, explainable SQL** — never a black-box
+score and never AI/ML. Calling the result "matching intelligence" is a
+product-framing choice, not a technical one: every fact behind it is a
+named, independently-testable boolean or ratio, traceable to a real
+column.
+
+**Architecture.** Seven small `SECURITY DEFINER` helper functions,
+each computing ONE fact about a `(provider_id, job_id)` pair:
+
+- `provider_service_match_ratio` — fraction of the job's required
+  services (`job_services`) the provider actively offers
+  (`provider_services`, active only). Jobs today always have exactly
+  one service row, but the function handles N generically since the
+  schema allows more.
+- `provider_available_for_schedule` — does the job's `scheduled_start`
+  fall inside one of the provider's recurring weekly
+  `provider_availability` windows (converted to `Asia/Kolkata` local
+  time)? Returns `null` (unknown) when the job has no schedule or the
+  provider has set no availability at all — an unfilled section is
+  never read as a negative.
+- `provider_has_workload_conflict` — does the provider already have a
+  `confirmed`/`in_progress` job (via `job_assignments`) whose
+  scheduled window (`tstzrange` overlap) conflicts with this one? Only
+  asserts a conflict when both jobs have explicit start/end times.
+- `provider_has_matching_machine` — `null` (not applicable) if the job
+  has no `job_machine_requirements`; otherwise true only if EVERY
+  requirement row has a matching active machine, matched by normalized
+  (lowercased/trimmed) `machine_type` text comparison OR by
+  `machine_services` linking the machine to the job's required
+  service.
+- `provider_has_matching_workers` — `null` if the job has no
+  `job_worker_requirements`; otherwise a pure capacity check (active
+  `workers` count or a single active team's `member_count` meets
+  `worker_count`) — no skill-matching, since
+  `job_worker_requirements.skill_requirement` is free text with no
+  reliable structure.
+- `provider_budget_fit` — `null` unless the job has a stated budget
+  AND the provider has a stated price range
+  (`provider_services.min_price/max_price`) for the required service;
+  otherwise a plain range-overlap test. Never a guaranteed final price
+  — offers are still negotiated.
+- `provider_trust_score` — pure math, no table access; see "Reputation"
+  below.
+
+Plus one pure combinator, `job_match_tier(...)`, folding the above into
+`'strong'` / `'good'` / `'fair'` / `null`. None of these eight
+functions are meant to be called directly via PostgREST — `EXECUTE` is
+revoked from `anon`/`authenticated` on all of them (same lockdown
+pattern as the Phase 5 trigger functions), verified live: a direct
+`POST /rest/v1/rpc/provider_has_matching_machine` as an authenticated
+user returns `403 permission denied`. They are internal building
+blocks, callable only from within `discover_jobs()` and
+`get_offers_for_job()`, which are themselves already-authorized
+`SECURITY DEFINER` entry points.
+
+**`discover_jobs()`** computes every fact via a `scored` CTE (each
+helper called once per row, not per reference) against the *calling*
+provider's own data — a pure self-check, via the same `me as (...
+where profile_id = auth.uid())` pattern the function already used for
+`has_matching_service`. No cross-user read was added. The
+`'recommended'` sort (unchanged parameter value, so no existing filter
+UI broke) now orders by `match_tier` first (strong → good → fair → no
+match), then distance, then schedule, then recency — replacing the
+old "matching-service-first" tier with a richer one. The UI label
+changed from "Recommended" to **"Best matches"** — the other four
+sort modes (nearest/newest/budget/earliest) are untouched.
+
+**`get_offers_for_job()`** computes the same facts for each *offering*
+provider against the one job the caller (the farmer) owns — still only
+derived booleans/aggregates about that provider, never raw
+`machines`/`workers` rows, exactly matching the pre-existing precedent
+of returning `service_names` (aggregated) instead of raw
+`provider_services`. Default order changed from plain `created_at desc`
+to: accepted offer first, then `match_tier`, then `provider_trust_score`
+descending, then distance, then recency. **Verified live that this is
+not "sort by price":** a test provider offering ₹4,200 with a strong
+match (service + machine + workers + schedule + budget all satisfied)
+ranked above a competitor offering ₹3,200 with a fair match (four of
+six signals negative) — the cheaper, weaker-matched offer ranked
+second despite being submitted first.
+
+**Reputation — Bayesian-damped, not a raw average.**
+`provider_trust_score(rating_average, rating_count)` computes
+`(rating_average · rating_count + 3.5 · 3) / (rating_count + 3)`: a
+provider with zero reviews lands at the neutral prior (3.5/5), never
+at zero — verified live (`provider_trust_score(null, null) = 3.5`). A
+single 5-star review only pulls the score to 3.875, not straight to
+5.0 (resistant to gaming via one review); 40 reviews averaging 4.6
+lands at 4.52 (barely damped — real history dominates quickly, prior
+weight is deliberately small). This directly satisfies "a new provider
+should remain honestly represented" — `rating_count = 0` still renders
+as "New provider · No reviews yet" everywhere it always has; the trust
+score only affects *ranking*, never what's displayed.
+
+**Tiering rule (not a weighted score).**
+`job_match_tier(service_ratio, within_radius, schedule_available,
+has_workload_conflict, machine_match, worker_match, budget_fit)`:
+returns `null` if the service itself doesn't match (no ratio > 0);
+otherwise counts how many of the six soft signals are explicitly
+`false` (a `null` — unknown or not-applicable — never counts as
+negative): 0 negatives → `'strong'`, 1 → `'good'`, 2+ → `'fair'`.
+Verified live across all these cases with real data, including the
+"unknowns don't count against you" case (a provider with zero
+`provider_availability` rows got `schedule_available = null`, correctly
+excluded from the tier calculation rather than counted as a miss).
+
+**Hard eligibility vs. soft ranking.** Only three things exclude a
+candidate entirely: job not in an open status
+(`posted`/`matching`/`offers_received`, unchanged), the calling/
+offering provider not being the authenticated owner of their own
+profile (unchanged `owns_provider_profile` check), and — newly, a real
+gap found and fixed this phase — a provider profile with
+`is_active = false`. **`submit_job_offer()` never checked
+`is_active`** before this phase; a deactivated provider (meant to be
+invisible to farmers, per the profile's own "Visible to farmers while
+active" copy) could still submit new offers. Fixed by adding the check
+(migration 0033) and verified live: an inactive test provider's offer
+attempt now fails with `"provider profile is not active"`, caught by
+the existing generic error-mapping fallback in `submitOfferAction` so
+nothing raw ever reaches the browser. Everything else — distance,
+schedule, machine, worker, budget, reputation — is soft ranking only:
+a candidate missing a resource still appears, just lower, per the
+explicit "don't unfairly bury an imperfect match" product requirement.
+
+**Distance and privacy.** No new coordinate exposure. Both RPCs already
+withheld `farm_jobs.location`/`provider_profiles.location` themselves,
+returning only a rounded `ST_Distance(...)/1000` and a free-text
+`locality` (the farmer's own profile location string) — Phase 7 adds
+no new column that could leak a raw coordinate, and every new helper
+function operates entirely server-side inside the existing
+`SECURITY DEFINER` boundary.
+
+**Security regression, tested live with real accounts (not just code
+review):** anonymous calls to `discover_jobs`/`get_offers_for_job` →
+`401`; a farmer calling `discover_jobs` (no provider profile) →
+empty array, no crash; an unrelated provider calling
+`get_offers_for_job` on a job they don't own → `"not authorized"`;
+direct `POST` to any of the eight new helper functions as an
+authenticated user → `403 permission denied`; one provider reading
+another provider's `machines`/`provider_availability` directly via
+REST → empty result (existing owner-only RLS, unchanged, still
+enforced); a forged/nonexistent `job_id` passed to `discover_jobs` →
+empty result, not an error; all four pre-existing sort modes and all
+four pre-existing filters re-verified working after the rewrite; full
+farmer→provider lifecycle (post → discover with matching → offer →
+compare with matching → accept → start → complete → review) re-run
+end-to-end with no regression.
+
+**Performance.** No new indexes were added. `EXPLAIN ANALYZE` on both
+rewritten RPCs (warm cache) measured ~4ms each at prototype data
+volumes — every new helper query is keyed by already-indexed columns
+(`provider_id`, `job_id`) against small per-provider resource sets.
+Performance advisor re-run clean (only the pre-existing `unused_index`
+INFO-level noise expected on a low-traffic prototype). Per the explicit
+instruction not to add speculative indexes, none were added
+pre-emptively — if the provider/job count grows large enough to matter,
+add `EXPLAIN`-justified indexes then, not now.
+
+**UX.** `MatchTierBadge` (strong/good/fair, icon + label, never a
+color-only signal) and `MatchFactList` (a ✓/✗ checklist, only showing
+facts that are actually known — an unfilled or not-applicable signal
+is silently omitted rather than shown as a false negative) are shared
+components (`features/marketplace/components/match-badges.tsx`) reused
+on the provider's Find Jobs cards, the farmer's desktop offer
+comparison table (new "Match" column), and the mobile offer cards. No
+percentage is ever shown — a bare "87%" is exactly the kind of false
+precision this phase deliberately avoids in favor of a plain-language
+checklist an investor can read at a glance.
+
+**Known limitations, documented rather than hidden:**
+- `provider_available_for_schedule` compares local time-of-day only —
+  a job window that crosses midnight is not evaluated correctly.
+- Machine-type matching is a normalized text comparison
+  (`machine_type` is free text on both `machines` and
+  `job_machine_requirements`, with no shared vocabulary) — a real but
+  pragmatic approximation, not a guarantee. "Tractor" and "Farm
+  Tractor" won't match today.
+- Worker matching is pure capacity (headcount), never skill-matching.
+- `machine_availability` (date-specific machine booking) remains fully
+  dormant — the table and its exclusion constraint exist, but nothing
+  writes to it anywhere in the codebase, and there is still no worker/
+  machine-to-assignment junction table recording which specific
+  machine or worker was actually sent on a confirmed job. Per-resource
+  (as opposed to per-provider) availability is architecturally
+  unreachable until that junction exists — explicitly deferred, not
+  faked.
+- `verification_status` has no real verification workflow behind it —
+  nothing in the app ever sets a provider to `'verified'`. It remains
+  a passive display fact and a small ranking bonus if true, not
+  something this phase builds a process for.
+
+**Deliberately deferred:** a materialized/cached match table (no
+justification at current data volume — everything is computed live in
+under 5ms); a farmer-selectable sort control on `get_offers_for_job`
+(the fixed best-match-first order already answers "which provider is
+the best fit" without added complexity); AI/ML-based matching or
+personalization; push-based "notify matching providers about a new
+job" (the existing pull/browse model via `discover_jobs` is
+unchanged); skill-level worker matching; a machine-type taxonomy to
+replace free-text comparison.
+
 ## Environment variables
 
 All access goes through `src/lib/env.ts`, which throws a clear error if a
