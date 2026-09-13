@@ -103,9 +103,10 @@ export const JOB_STATUSES = [
 ] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
 
-/** Mirrors public.farm_jobs (0007) — location intentionally omitted here;
- * it's only ever read directly by the owner or an assigned provider via
- * RLS, never through the shared marketplace types. */
+/** Mirrors public.farm_jobs (0007, lifecycle columns added in 0022) —
+ * location intentionally omitted here; it's only ever read directly by
+ * the owner or an assigned provider via RLS, never through the shared
+ * marketplace types. */
 export type FarmJob = {
   id: string;
   created_by: string;
@@ -119,7 +120,24 @@ export type FarmJob = {
   budget_type: string | null;
   created_at: string;
   updated_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
 };
+
+/** The only actions transition_job_status() (0022) accepts — see
+ * ARCHITECTURE.md "Job lifecycle" for the full legal-transition table. */
+export type JobTransitionAction = "start" | "complete" | "cancel";
+
+export const CANCELLATION_REASONS = [
+  "Plans changed",
+  "Provider unavailable",
+  "Weather conditions",
+  "Work no longer needed",
+  "Other",
+] as const;
 
 export type JobServiceRequirement = {
   id: string;
@@ -232,7 +250,13 @@ export type OfferForJob = {
   created_at: string;
 };
 
-export type NotificationType = "offer_received" | "offer_accepted" | "system";
+export type NotificationType =
+  | "offer_received"
+  | "offer_accepted"
+  | "job_started"
+  | "job_completed"
+  | "job_cancelled"
+  | "system";
 
 /** Mirrors public.notifications (0017). Rows are only ever written by
  * create_notification(), a locked-down SECURITY DEFINER helper called

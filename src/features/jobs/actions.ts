@@ -117,3 +117,50 @@ export async function acceptOfferAction(
   revalidatePath("/app/jobs");
   redirect(`/app/jobs/${jobId}`);
 }
+
+export async function transitionJobStatusAction(
+  _prevState: MarketplaceFormState,
+  formData: FormData
+): Promise<MarketplaceFormState> {
+  const jobId = formData.get("jobId");
+  const action = formData.get("action");
+  const cancellationReason = formData.get("cancellationReason");
+
+  if (typeof jobId !== "string" || typeof action !== "string") {
+    return { status: "error", message: "Something went wrong. Please try again." };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("transition_job_status", {
+      p_job_id: jobId,
+      p_action: action,
+      p_cancellation_reason:
+        typeof cancellationReason === "string" && cancellationReason.trim()
+          ? cancellationReason.trim()
+          : null,
+    });
+
+    if (error) {
+      if (error.message.includes("not authorized") || error.message.startsWith("only the")) {
+        return { status: "error", message: "You're not able to do that for this job." };
+      }
+      if (error.message.includes("job is not in a") || error.message.includes("status changed")) {
+        return {
+          status: "error",
+          message: "This job's status just changed. Please refresh and try again.",
+        };
+      }
+      return { status: "error", message: "Could not update this job. Please try again." };
+    }
+  } catch {
+    return { status: "error", message: "Network error. Check your connection and try again." };
+  }
+
+  revalidatePath(`/app/jobs/${jobId}`);
+  revalidatePath(`/app/provider/jobs/${jobId}`);
+  revalidatePath("/app/jobs");
+  revalidatePath("/app/provider");
+  revalidatePath("/app");
+  return { status: "success", message: "Job updated." };
+}
