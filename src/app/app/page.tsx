@@ -7,6 +7,7 @@ import { getCurrentProfile } from "@/features/auth/profile";
 import { listMyJobs } from "@/features/jobs/queries";
 import { JobCard } from "@/features/jobs/components/job-card";
 import { EmptyState } from "@/features/marketplace/components/empty-state";
+import { MetricCard } from "@/features/marketplace/components/metric-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -56,10 +57,10 @@ export default async function FarmerHomePage() {
       </Card>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile label="Awaiting Offers" value={awaitingOffers} />
-        <StatTile label="Confirmed" value={confirmed} />
-        <StatTile label="In Progress" value={inProgress} />
-        <StatTile label="Completed" value={completed} />
+        <MetricCard label="Awaiting Offers" value={awaitingOffers} />
+        <MetricCard label="Confirmed" value={confirmed} />
+        <MetricCard label="In Progress" value={inProgress} />
+        <MetricCard label="Completed" value={completed} />
       </div>
 
       <div className="flex flex-col gap-3">
@@ -92,16 +93,5 @@ export default async function FarmerHomePage() {
         )}
       </div>
     </div>
-  );
-}
-
-function StatTile({ label, value }: { label: string; value: number }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-1 px-3 py-4 text-center">
-        <span className="text-2xl font-semibold">{value}</span>
-        <span className="text-muted-foreground text-xs">{label}</span>
-      </CardContent>
-    </Card>
   );
 }

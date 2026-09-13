@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Wrench, Phone, MapPin, Calendar, IndianRupee } from "lucide-react";
+import { Wrench, Phone, MapPin, Calendar, IndianRupee, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/features/auth/profile";
 import {
@@ -10,7 +10,9 @@ import {
   discoverJobs,
 } from "@/features/provider/queries";
 import { EmptyState } from "@/features/marketplace/components/empty-state";
+import { MetricCard } from "@/features/marketplace/components/metric-card";
 import { JobStatusBadge } from "@/features/jobs/components/job-status-badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatBudget, formatDateTime } from "@/features/marketplace/format";
 import type { FarmJob } from "@/types/marketplace";
@@ -80,11 +82,18 @@ export default async function ProviderWorkPage() {
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">Work</h1>
 
+      <Button asChild className="h-12 w-full text-base md:w-auto">
+        <Link href="/app/provider/jobs">
+          <Search className="size-4" aria-hidden />
+          Find Work
+        </Link>
+      </Button>
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile label="Available Jobs" value={availableJobs.length} />
-        <StatTile label="Active Work" value={activeWork} />
-        <StatTile label="Upcoming" value={upcoming} />
-        <StatTile label="Completed" value={completedWork} />
+        <MetricCard label="Available Jobs" value={availableJobs.length} />
+        <MetricCard label="Active Work" value={activeWork} />
+        <MetricCard label="Upcoming" value={upcoming} />
+        <MetricCard label="Completed" value={completedWork} />
       </div>
 
       {withDetails.length === 0 ? (
@@ -132,16 +141,5 @@ export default async function ProviderWorkPage() {
         </div>
       )}
     </div>
-  );
-}
-
-function StatTile({ label, value }: { label: string; value: number }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-1 px-3 py-4 text-center">
-        <span className="text-2xl font-semibold">{value}</span>
-        <span className="text-muted-foreground text-xs">{label}</span>
-      </CardContent>
-    </Card>
   );
 }
