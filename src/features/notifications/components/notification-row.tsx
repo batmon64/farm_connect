@@ -1,4 +1,4 @@
-import { FileText, CheckCircle2, Info } from "lucide-react";
+import { FileText, CheckCircle2, PlayCircle, Ban, Info } from "lucide-react";
 import { markNotificationReadAction } from "../actions";
 import { notificationHref } from "../queries";
 import { formatRelativeTime } from "@/features/marketplace/format";
@@ -7,12 +7,21 @@ import type { Notification } from "@/types/marketplace";
 const TYPE_ICON: Record<Notification["type"], typeof FileText> = {
   offer_received: FileText,
   offer_accepted: CheckCircle2,
+  job_started: PlayCircle,
+  job_completed: CheckCircle2,
+  job_cancelled: Ban,
   system: Info,
 };
 
-export function NotificationRow({ notification }: { notification: Notification }) {
+export function NotificationRow({
+  notification,
+  isFarmerForJob,
+}: {
+  notification: Notification;
+  isFarmerForJob?: boolean;
+}) {
   const isUnread = notification.read_at === null;
-  const href = notificationHref(notification);
+  const href = notificationHref(notification, isFarmerForJob);
   const Icon = TYPE_ICON[notification.type];
 
   return (

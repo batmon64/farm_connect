@@ -26,19 +26,31 @@ export async function listNotifications(
   return (data ?? []) as Notification[];
 }
 
-/** Where a notification's "click through" should land. Some event types
- * (offer_accepted, for a provider) have no single-job detail route once
- * a job leaves the open/discoverable set, so they route to a list view
- * instead of a deep link. */
-export function notificationHref(notification: Notification): string | null {
+/** Where a notification's "click through" should land. The destination
+ * page still enforces its own authorization independently (RLS on the
+ * farmer page, an assignment check on the provider page) — this only
+ * picks a URL, it grants nothing.
+ *
+ * Most event types have an unambiguous recipient side (offer_received/
+ * job_started always go to the farmer; offer_accepted/job_cancelled
+ * always go to the provider, since only a farmer can cancel).
+ * `job_completed` is the one type either side can receive — the caller
+ * resolves that ahead of time (one small batched query in the
+ * notifications page) and passes it as `isFarmerForJob`. */
+export function notificationHref(notification: Notification, isFarmerForJob?: boolean): string | null {
   if (notification.related_entity_type !== "job" || !notification.related_entity_id) {
     return null;
   }
+  const jobId = notification.related_entity_id;
   switch (notification.type) {
     case "offer_received":
-      return `/app/jobs/${notification.related_entity_id}`;
+    case "job_started":
+      return `/app/jobs/${jobId}`;
     case "offer_accepted":
-      return "/app/provider";
+    case "job_cancelled":
+      return `/app/provider/jobs/${jobId}`;
+    case "job_completed":
+      return isFarmerForJob ? `/app/jobs/${jobId}` : `/app/provider/jobs/${jobId}`;
     default:
       return null;
   }

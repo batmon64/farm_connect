@@ -18,6 +18,27 @@ export default async function NotificationsPage() {
   const notifications = await listNotifications(supabase, user.id);
   const hasUnread = notifications.some((n) => n.read_at === null);
 
+  // "job_completed" is the one notification type either a farmer or a
+  // provider can receive — resolve which side this viewer is on for
+  // each such job with one batched query, so click-through can route
+  // correctly (see notificationHref).
+  const ambiguousJobIds = [
+    ...new Set(
+      notifications
+        .filter((n) => n.type === "job_completed" && n.related_entity_type === "job" && n.related_entity_id)
+        .map((n) => n.related_entity_id as string)
+    ),
+  ];
+  let ownedJobIds = new Set<string>();
+  if (ambiguousJobIds.length > 0) {
+    const { data } = await supabase
+      .from("farm_jobs")
+      .select("id")
+      .in("id", ambiguousJobIds)
+      .eq("created_by", user.id);
+    ownedJobIds = new Set((data ?? []).map((j) => j.id as string));
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-3">
@@ -40,7 +61,13 @@ export default async function NotificationsPage() {
       ) : (
         <div className="flex flex-col gap-2">
           {notifications.map((notification) => (
-            <NotificationRow key={notification.id} notification={notification} />
+            <NotificationRow
+              key={notification.id}
+              notification={notification}
+              isFarmerForJob={
+                notification.related_entity_id ? ownedJobIds.has(notification.related_entity_id) : undefined
+              }
+            />
           ))}
         </div>
       )}
