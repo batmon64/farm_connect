@@ -114,6 +114,38 @@ export async function listMyConfirmedWork(supabase: SupabaseClient, providerId: 
   return data ?? [];
 }
 
+/** The calling provider's assignment for one specific job, with the
+ * full farm_jobs row and farmer contact — both genuinely readable once
+ * an active assignment exists (see 0011's counterparty RLS). Used for
+ * the provider-side job detail page once a job has left the open/
+ * discoverable set (discover_jobs only returns posted-family jobs), so
+ * a confirmed/in_progress/completed/cancelled job still has somewhere
+ * to render for its assigned provider. RLS (job owner or the assigned
+ * provider) is the actual authorization boundary here — this query
+ * simply returns nothing for a job this caller isn't part of. */
+export async function getMyAssignmentForJob(supabase: SupabaseClient, jobId: string) {
+  const { data, error } = await supabase
+    .from("job_assignments")
+    .select(
+      "*, farm_jobs(*), provider_profiles(id, business_name, profile_id)"
+    )
+    .eq("job_id", jobId)
+    .order("assigned_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data as
+    | {
+        id: string;
+        job_id: string;
+        provider_id: string;
+        status: string;
+        farm_jobs: import("@/types/marketplace").FarmJob | null;
+        provider_profiles: { id: string; business_name: string | null; profile_id: string } | null;
+      }
+    | null;
+}
+
 export async function getJobCoordinates(supabase: SupabaseClient, jobId: string) {
   const { data, error } = await supabase.rpc("get_job_coordinates", { p_job_id: jobId });
   if (error) throw error;

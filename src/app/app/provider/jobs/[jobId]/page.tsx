@@ -1,10 +1,19 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Calendar, IndianRupee, MapPin } from "lucide-react";
+import { Calendar, IndianRupee, MapPin, Phone, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/features/auth/profile";
-import { getMyProviderProfile, discoverJobs } from "@/features/provider/queries";
+import {
+  getMyProviderProfile,
+  discoverJobs,
+  getMyAssignmentForJob,
+  getJobCoordinates,
+} from "@/features/provider/queries";
 import { SubmitOfferForm } from "@/features/provider/components/submit-offer-form";
+import { JobStatusLine } from "@/features/jobs/components/job-status-line";
+import { JobTimeline } from "@/features/jobs/components/job-timeline";
+import { JobLifecycleActions } from "@/features/jobs/components/job-lifecycle-actions";
+import { JobHistory } from "@/features/jobs/components/job-history";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +40,15 @@ export default async function ProviderJobDetailPage({
   const providerProfile = await getMyProviderProfile(supabase, user.id);
   const jobs = await discoverJobs(supabase, jobId);
   const job = jobs[0];
-  if (!job) notFound();
+
+  if (!job) {
+    // Not in the open/discoverable set — either it never was, or it has
+    // moved past confirmation. If this provider is the assigned one,
+    // render the operational lifecycle view instead of 404ing.
+    const assignment = await getMyAssignmentForJob(supabase, jobId);
+    if (!assignment?.farm_jobs) notFound();
+    return <AssignedJobView job={assignment.farm_jobs} providerName={assignment.provider_profiles?.business_name ?? null} />;
+  }
 
   const [{ data: services }, { data: machineReqs }, { data: workerReqs }] = await Promise.all([
     supabase.from("job_services").select("*, services(name, unit_type)").eq("job_id", jobId),
@@ -131,6 +148,117 @@ export default async function ProviderJobDetailPage({
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+/** The operational view for a job the calling provider is assigned to
+ * (confirmed/in_progress/completed/cancelled) — RLS already grants full
+ * row access including farm_jobs.location and the farmer's phone once
+ * assigned (0011), so this reads directly rather than going through
+ * discover_jobs' privacy-scoped columns. */
+async function AssignedJobView({
+  job,
+  providerName,
+}: {
+  job: import("@/types/marketplace").FarmJob;
+  providerName: string | null;
+}) {
+  const supabase = await createClient();
+  const [{ data: farmerProfile }, point] = await Promise.all([
+    supabase.from("profiles").select("display_name, phone, location").eq("id", job.created_by).maybeSingle(),
+    getJobCoordinates(supabase, job.id),
+  ]);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1.5">
+        <h1 className="text-xl font-semibold">{job.title}</h1>
+        {farmerProfile?.location ? (
+          <p className="text-muted-foreground inline-flex items-center gap-1 text-sm">
+            <MapPin className="size-3.5" aria-hidden />
+            {farmerProfile.location}
+          </p>
+        ) : null}
+        <JobStatusLine status={job.status} />
+      </div>
+
+      <Card>
+        <CardContent className="flex flex-col gap-3 pt-5 text-sm">
+          {job.description ? <p>{job.description}</p> : null}
+          <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="inline-flex items-center gap-1.5">
+              <Calendar className="size-4" aria-hidden />
+              {formatDateTime(job.scheduled_start)}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <IndianRupee className="size-4" aria-hidden />
+              {formatBudget(job.budget_min, job.budget_max, job.budget_type)}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-5">
+          <JobTimeline status={job.status} />
+        </CardContent>
+      </Card>
+
+      <Card className={job.status === "cancelled" ? "border-destructive" : "border-primary"}>
+        <CardContent className="flex flex-col gap-3 pt-5">
+          {providerName ? (
+            <div>
+              <p className="text-muted-foreground text-xs">Your business</p>
+              <p className="flex items-center gap-2 text-sm font-medium">
+                <User className="size-4" aria-hidden />
+                {providerName}
+              </p>
+            </div>
+          ) : null}
+          <div>
+            <p className="text-muted-foreground text-xs">Farmer</p>
+            <p className="text-sm font-medium">{farmerProfile?.display_name || "Farmer"}</p>
+          </div>
+          {farmerProfile?.phone ? (
+            <a
+              href={`tel:${farmerProfile.phone}`}
+              className="text-primary flex items-center gap-2 text-sm underline underline-offset-4"
+            >
+              <Phone className="size-4" aria-hidden />
+              {farmerProfile.phone}
+            </a>
+          ) : null}
+          {point ? (
+            <a
+              href={`https://www.google.com/maps?q=${point.latitude},${point.longitude}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary inline-flex items-center gap-1.5 text-sm underline underline-offset-4"
+            >
+              <MapPin className="size-4" aria-hidden />
+              View exact location
+            </a>
+          ) : null}
+
+          {job.status === "confirmed" ? (
+            <p className="text-muted-foreground text-sm">Ready when you are.</p>
+          ) : job.status === "in_progress" && job.started_at ? (
+            <p className="text-muted-foreground text-sm">Started {formatDateTime(job.started_at)}.</p>
+          ) : job.status === "completed" && job.completed_at ? (
+            <p className="text-sm font-medium">Completed {formatDateTime(job.completed_at)}.</p>
+          ) : job.status === "cancelled" ? (
+            <p className="text-destructive text-sm font-medium">
+              Cancelled{job.cancelled_at ? ` ${formatDateTime(job.cancelled_at)}` : ""}
+              {job.cancellation_reason ? ` — ${job.cancellation_reason}` : ""}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <JobLifecycleActions jobId={job.id} status={job.status} viewerRole="provider" />
+
+      <JobHistory job={job} />
     </div>
   );
 }

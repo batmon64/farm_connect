@@ -4,6 +4,9 @@ import { Calendar, Clock, IndianRupee, Phone, User, Inbox, MapPin } from "lucide
 import { createClient } from "@/lib/supabase/server";
 import { getJobDetail, getOffersForJob, getAcceptedAssignmentForJob } from "@/features/jobs/queries";
 import { JobStatusLine } from "@/features/jobs/components/job-status-line";
+import { JobTimeline } from "@/features/jobs/components/job-timeline";
+import { JobLifecycleActions } from "@/features/jobs/components/job-lifecycle-actions";
+import { JobHistory } from "@/features/jobs/components/job-history";
 import { OfferCard } from "@/features/jobs/components/offer-card";
 import { OfferComparisonTable } from "@/features/jobs/components/offer-comparison-table";
 import { EmptyState } from "@/features/marketplace/components/empty-state";
@@ -24,12 +27,12 @@ export default async function JobDetailPage({
   if (!detail) notFound();
   const { job, services, machineRequirements, workerRequirements } = detail;
 
-  const isConfirmed = ["provider_selected", "confirmed", "in_progress", "completed"].includes(
+  const isConfirmedOrLater = ["confirmed", "in_progress", "completed", "cancelled"].includes(
     job.status
   );
 
   const [assignmentResult, farmerProfileResult] = await Promise.all([
-    isConfirmed ? getAcceptedAssignmentForJob(supabase, jobId) : Promise.resolve(null),
+    isConfirmedOrLater ? getAcceptedAssignmentForJob(supabase, jobId) : Promise.resolve(null),
     supabase.from("profiles").select("location").eq("id", job.created_by).maybeSingle(),
   ]);
   const assignment = assignmentResult;
@@ -45,7 +48,8 @@ export default async function JobDetailPage({
     providerContact = data;
   }
 
-  const offers = !isConfirmed ? await getOffersForJob(supabase, jobId) : [];
+  const offers = !isConfirmedOrLater ? await getOffersForJob(supabase, jobId) : [];
+  const providerName = assignment?.provider_profiles?.business_name || providerContact?.display_name || "Provider";
 
   return (
     <div className="flex flex-col gap-6">
@@ -108,39 +112,57 @@ export default async function JobDetailPage({
         </CardContent>
       </Card>
 
-      {isConfirmed && assignment ? (
-        <Card className="border-primary">
-          <CardContent className="flex flex-col gap-3 pt-5">
-            <p className="text-primary inline-flex items-center gap-1.5 text-sm font-medium">
-              ✓ Job confirmed
-            </p>
-            <div>
-              <p className="text-muted-foreground text-xs">Provider</p>
-              <p className="flex items-center gap-2 text-sm font-medium">
-                <User className="size-4" aria-hidden />
-                {assignment.provider_profiles?.business_name || providerContact?.display_name || "Provider"}
-              </p>
-            </div>
-            {providerContact?.phone ? (
+      {isConfirmedOrLater && assignment ? (
+        <>
+          <Card>
+            <CardContent className="pt-5">
+              <JobTimeline status={job.status} />
+            </CardContent>
+          </Card>
+
+          <Card className={job.status === "cancelled" ? "border-destructive" : "border-primary"}>
+            <CardContent className="flex flex-col gap-3 pt-5">
               <div>
-                <p className="text-muted-foreground text-xs">Phone</p>
-                <a
-                  href={`tel:${providerContact.phone}`}
-                  className="text-primary flex items-center gap-2 text-sm underline underline-offset-4"
-                >
-                  <Phone className="size-4" aria-hidden />
-                  {providerContact.phone}
-                </a>
+                <p className="text-muted-foreground text-xs">Provider</p>
+                <p className="flex items-center gap-2 text-sm font-medium">
+                  <User className="size-4" aria-hidden />
+                  {providerName}
+                </p>
               </div>
-            ) : null}
-            {job.scheduled_start ? (
-              <div>
-                <p className="text-muted-foreground text-xs">Scheduled</p>
-                <p className="text-sm font-medium">{formatDateTime(job.scheduled_start)}</p>
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
+              {providerContact?.phone ? (
+                <div>
+                  <p className="text-muted-foreground text-xs">Phone</p>
+                  <a
+                    href={`tel:${providerContact.phone}`}
+                    className="text-primary flex items-center gap-2 text-sm underline underline-offset-4"
+                  >
+                    <Phone className="size-4" aria-hidden />
+                    {providerContact.phone}
+                  </a>
+                </div>
+              ) : null}
+
+              {job.status === "confirmed" ? (
+                <p className="text-muted-foreground text-sm">Waiting for work to begin.</p>
+              ) : job.status === "in_progress" && job.started_at ? (
+                <p className="text-muted-foreground text-sm">
+                  Started {formatDateTime(job.started_at)}.
+                </p>
+              ) : job.status === "completed" && job.completed_at ? (
+                <p className="text-sm font-medium">Completed {formatDateTime(job.completed_at)}.</p>
+              ) : job.status === "cancelled" ? (
+                <p className="text-destructive text-sm font-medium">
+                  Cancelled{job.cancelled_at ? ` ${formatDateTime(job.cancelled_at)}` : ""}
+                  {job.cancellation_reason ? ` — ${job.cancellation_reason}` : ""}
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <JobLifecycleActions jobId={job.id} status={job.status} viewerRole="farmer" />
+
+          <JobHistory job={job} />
+        </>
       ) : (
         <div className="flex flex-col gap-3">
           <h2 className="font-medium">
