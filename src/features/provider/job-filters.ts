@@ -24,7 +24,7 @@ export const BUDGET_OPTIONS = [
 ] as const;
 
 export const SORT_OPTIONS: { value: JobSort; label: string }[] = [
-  { value: "recommended", label: "Recommended" },
+  { value: "recommended", label: "Best matches" },
   { value: "nearest", label: "Nearest" },
   { value: "newest", label: "Newest" },
   { value: "budget", label: "Highest budget" },

@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Calendar, IndianRupee, MapPin, Sparkles, Users2, CheckCircle2 } from "lucide-react";
+import { Calendar, IndianRupee, MapPin, Users2, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { MatchTierBadge, MatchFactList } from "@/features/marketplace/components/match-badges";
 import {
   formatBudget,
   formatDateTime,
@@ -30,12 +31,9 @@ export function DiscoveredJobCard({ job }: { job: DiscoveredJob }) {
                     ? "You offered"
                     : OFFER_STATUS_LABEL[job.my_offer_status]}
                 </Badge>
-              ) : job.has_matching_service ? (
-                <Badge variant="secondary">
-                  <Sparkles className="size-3" aria-hidden />
-                  Matches you
-                </Badge>
-              ) : null}
+              ) : (
+                <MatchTierBadge tier={job.match_tier} />
+              )}
             </div>
           </div>
 
@@ -52,6 +50,8 @@ export function DiscoveredJobCard({ job }: { job: DiscoveredJob }) {
           {job.requirement_summary ? (
             <p className="text-muted-foreground text-sm">{job.requirement_summary}</p>
           ) : null}
+
+          <MatchFactList facts={job} />
 
           <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
             <span className="inline-flex items-center gap-1">
