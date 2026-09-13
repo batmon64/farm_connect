@@ -23,13 +23,11 @@ export default async function FarmerHomePage() {
   }
 
   const jobs = await listMyJobs(supabase, user.id);
-  const waitingForOffers = jobs.filter((j) =>
-    ["posted", "matching", "offers_received"].includes(j.status)
-  ).length;
-  const confirmed = jobs.filter((j) =>
-    ["provider_selected", "confirmed", "in_progress"].includes(j.status)
-  ).length;
+  const awaitingOffers = jobs.filter((j) => ["posted", "matching", "offers_received"].includes(j.status)).length;
+  const confirmed = jobs.filter((j) => j.status === "confirmed").length;
+  const inProgress = jobs.filter((j) => j.status === "in_progress").length;
   const completed = jobs.filter((j) => j.status === "completed").length;
+  const activeJobs = confirmed + inProgress;
   const recent = jobs.slice(0, 5);
 
   return (
@@ -50,9 +48,17 @@ export default async function FarmerHomePage() {
         </Link>
       </Button>
 
-      <div className="grid grid-cols-3 gap-3">
-        <StatTile label="Waiting for offers" value={waitingForOffers} />
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="flex items-center justify-between px-5 py-4">
+          <span className="text-sm font-medium">Active Jobs</span>
+          <span className="text-2xl font-semibold">{activeJobs}</span>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatTile label="Awaiting Offers" value={awaitingOffers} />
         <StatTile label="Confirmed" value={confirmed} />
+        <StatTile label="In Progress" value={inProgress} />
         <StatTile label="Completed" value={completed} />
       </div>
 
@@ -69,11 +75,11 @@ export default async function FarmerHomePage() {
         {recent.length === 0 ? (
           <EmptyState
             icon={Sprout}
-            title="You haven't posted any jobs yet."
+            title="You haven't posted a job yet."
             description="Post your first farm job and providers nearby will be able to respond with offers."
             action={
               <Button asChild>
-                <Link href="/app/jobs/new">Post a Job</Link>
+                <Link href="/app/jobs/new">Post your first job</Link>
               </Button>
             }
           />
