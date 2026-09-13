@@ -192,10 +192,29 @@ export type JobAssignment = {
   status: AssignmentStatus;
 };
 
+/** 'strong' / 'good' / 'fair' summarize job_match_tier(...) (Phase 7) —
+ * deterministic SQL, never AI. Null means the service itself doesn't
+ * match, so there's no meaningful match to label. Each boolean fact
+ * behind the tier is `true` (matches), `false` (known mismatch), or
+ * `null` (unknown / not applicable — never treated as a negative). */
+export type MatchTier = "strong" | "good" | "fair" | null;
+
+export type MatchFacts = {
+  within_service_radius: boolean | null;
+  schedule_available: boolean | null;
+  has_workload_conflict: boolean | null;
+  machine_match: boolean | null;
+  worker_match: boolean | null;
+  budget_fit: boolean | null;
+  match_tier: MatchTier;
+};
+
 /** Row shape returned by the discover_jobs(...) RPC (0011, extended in
- * 0020) — never includes a raw coordinate, only a computed distance +
- * free-text locality from the farmer's own profile. */
-export type DiscoveredJob = {
+ * 0020 and 0031) — never includes a raw coordinate, only a computed
+ * distance + free-text locality from the farmer's own profile. The
+ * match_* fields are the calling provider's own compatibility facts
+ * against this job (self-check, never another provider's data). */
+export type DiscoveredJob = MatchFacts & {
   id: string;
   title: string;
   description: string | null;
@@ -230,8 +249,11 @@ export type DiscoverJobsFilters = {
   sort?: JobSort;
 };
 
-/** Row shape returned by get_offers_for_job(...) (0011, extended in 0021). */
-export type OfferForJob = {
+/** Row shape returned by get_offers_for_job(...) (0011, extended in
+ * 0021 and 0032). match_tier here ranks this offer's provider against
+ * THIS job specifically — the default row order is already best-match
+ * first (see the RPC), this is just what backs the visible badge. */
+export type OfferForJob = MatchFacts & {
   offer_id: string;
   provider_id: string;
   business_name: string | null;
