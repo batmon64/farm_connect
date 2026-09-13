@@ -64,16 +64,18 @@ export default async function ProviderWorkPage() {
     (a) => a.farm_jobs?.status === "confirmed" || a.farm_jobs?.status === "in_progress"
   );
 
+  const farmerIds = Array.from(
+    new Set(active.map((a) => a.farm_jobs?.created_by).filter((id): id is string => Boolean(id)))
+  );
+  const { data: farmerProfiles } = farmerIds.length
+    ? await supabase.from("profiles").select("id, display_name, phone").in("id", farmerIds)
+    : { data: [] };
+  const farmerProfileById = new Map((farmerProfiles ?? []).map((p) => [p.id, p]));
+
   const withDetails = await Promise.all(
     active.map(async (a) => {
-      const [point, { data: farmerProfile }] = await Promise.all([
-        getJobCoordinates(supabase, a.job_id),
-        supabase
-          .from("profiles")
-          .select("display_name, phone")
-          .eq("id", a.farm_jobs?.created_by ?? "")
-          .maybeSingle(),
-      ]);
+      const point = await getJobCoordinates(supabase, a.job_id);
+      const farmerProfile = farmerProfileById.get(a.farm_jobs?.created_by ?? "") ?? null;
       return { assignment: a, job: a.farm_jobs, point, farmerProfile };
     })
   );
