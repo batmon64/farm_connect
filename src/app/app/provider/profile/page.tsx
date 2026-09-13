@@ -16,6 +16,8 @@ import { MachinesManager } from "@/features/provider/components/machines-manager
 import { WorkersTeamsManager } from "@/features/provider/components/workers-teams-manager";
 import { AvailabilityManager } from "@/features/provider/components/availability-manager";
 import { ProviderTrustSummary } from "@/features/provider/components/provider-trust-summary";
+import { ProviderReviewsList } from "@/features/reviews/components/provider-reviews-list";
+import { getProviderReviews } from "@/features/reviews/queries";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -30,15 +32,16 @@ export default async function ProviderProfilePage() {
   const providerProfile = await getMyProviderProfile(supabase, user.id);
   const { services } = await listServiceCatalogue(supabase);
 
-  const [myServices, machines, workers, teams, availability] = providerProfile
+  const [myServices, machines, workers, teams, availability, reviews] = providerProfile
     ? await Promise.all([
         listMyProviderServices(supabase, providerProfile.id),
         listMyMachines(supabase, providerProfile.id),
         listMyWorkers(supabase, providerProfile.id),
         listMyTeams(supabase, providerProfile.id),
         listMyAvailability(supabase, providerProfile.id),
+        getProviderReviews(supabase, providerProfile.id),
       ])
-    : [[], [], [], [], []];
+    : [[], [], [], [], [], []];
 
   return (
     <div className="flex flex-col gap-6">
@@ -69,6 +72,13 @@ export default async function ProviderProfilePage() {
                   .map((s) => s.services?.name)
                   .filter((name): name is string => Boolean(name))}
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex flex-col gap-4 pt-5">
+              <h2 className="font-medium">Reviews</h2>
+              <ProviderReviewsList reviews={reviews} />
             </CardContent>
           </Card>
 

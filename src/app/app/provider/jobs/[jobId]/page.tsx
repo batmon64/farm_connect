@@ -14,6 +14,8 @@ import { JobStatusLine } from "@/features/jobs/components/job-status-line";
 import { JobTimeline } from "@/features/jobs/components/job-timeline";
 import { JobLifecycleActions } from "@/features/jobs/components/job-lifecycle-actions";
 import { JobHistory } from "@/features/jobs/components/job-history";
+import { ReviewForm } from "@/features/reviews/components/review-form";
+import { getMyReviewForAssignment } from "@/features/reviews/queries";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +49,13 @@ export default async function ProviderJobDetailPage({
     // render the operational lifecycle view instead of 404ing.
     const assignment = await getMyAssignmentForJob(supabase, jobId);
     if (!assignment?.farm_jobs) notFound();
-    return <AssignedJobView job={assignment.farm_jobs} providerName={assignment.provider_profiles?.business_name ?? null} />;
+    return (
+      <AssignedJobView
+        job={assignment.farm_jobs}
+        assignmentId={assignment.id}
+        providerName={assignment.provider_profiles?.business_name ?? null}
+      />
+    );
   }
 
   const [{ data: services }, { data: machineReqs }, { data: workerReqs }] = await Promise.all([
@@ -159,9 +167,11 @@ export default async function ProviderJobDetailPage({
  * discover_jobs' privacy-scoped columns. */
 async function AssignedJobView({
   job,
+  assignmentId,
   providerName,
 }: {
   job: import("@/types/marketplace").FarmJob;
+  assignmentId: string;
   providerName: string | null;
 }) {
   const supabase = await createClient();
@@ -169,6 +179,16 @@ async function AssignedJobView({
     supabase.from("profiles").select("display_name, phone, location").eq("id", job.created_by).maybeSingle(),
     getJobCoordinates(supabase, job.id),
   ]);
+
+  let existingReview = null;
+  if (job.status === "completed") {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      existingReview = await getMyReviewForAssignment(supabase, assignmentId, user.id);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -257,6 +277,15 @@ async function AssignedJobView({
       </Card>
 
       <JobLifecycleActions jobId={job.id} status={job.status} viewerRole="provider" />
+
+      {job.status === "completed" ? (
+        <ReviewForm
+          jobId={job.id}
+          assignmentId={assignmentId}
+          revieweeName={farmerProfile?.display_name || "the farmer"}
+          existingReview={existingReview}
+        />
+      ) : null}
 
       <JobHistory job={job} />
     </div>

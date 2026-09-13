@@ -9,6 +9,8 @@ import { JobLifecycleActions } from "@/features/jobs/components/job-lifecycle-ac
 import { JobHistory } from "@/features/jobs/components/job-history";
 import { OfferCard } from "@/features/jobs/components/offer-card";
 import { OfferComparisonTable } from "@/features/jobs/components/offer-comparison-table";
+import { ReviewForm } from "@/features/reviews/components/review-form";
+import { getMyReviewForAssignment } from "@/features/reviews/queries";
 import { EmptyState } from "@/features/marketplace/components/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatBudget, formatDateTime, formatDuration } from "@/features/marketplace/format";
@@ -50,6 +52,16 @@ export default async function JobDetailPage({
 
   const offers = !isConfirmedOrLater ? await getOffersForJob(supabase, jobId) : [];
   const providerName = assignment?.provider_profiles?.business_name || providerContact?.display_name || "Provider";
+
+  let existingReview = null;
+  if (job.status === "completed" && assignment) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      existingReview = await getMyReviewForAssignment(supabase, assignment.id, user.id);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -160,6 +172,15 @@ export default async function JobDetailPage({
           </Card>
 
           <JobLifecycleActions jobId={job.id} status={job.status} viewerRole="farmer" />
+
+          {job.status === "completed" && assignment ? (
+            <ReviewForm
+              jobId={job.id}
+              assignmentId={assignment.id}
+              revieweeName={providerName}
+              existingReview={existingReview}
+            />
+          ) : null}
 
           <JobHistory job={job} />
         </>

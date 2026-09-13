@@ -43,10 +43,10 @@ export function ProviderTrustSummary({
         {hasRating ? (
           <span className="inline-flex items-center gap-1">
             <Star className="size-3.5 fill-current" aria-hidden />
-            {ratingAverage!.toFixed(1)} ({ratingCount})
+            {ratingAverage!.toFixed(1)} · {ratingCount} review{ratingCount === 1 ? "" : "s"}
           </span>
         ) : (
-          <span>New provider</span>
+          <span>New provider · No reviews yet</span>
         )}
         <span className="inline-flex items-center gap-1">
           <Briefcase className="size-3.5" aria-hidden />
