@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { CheckCircle2, Loader2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { StarRatingInput } from "./star-rating-input";
@@ -72,21 +73,30 @@ export function ReviewForm({
 
       <StarRatingInput value={rating} onChange={setRating} />
       {state.fieldErrors?.rating ? (
-        <p className="text-destructive -mt-2 text-sm">{state.fieldErrors.rating[0]}</p>
+        <p id="rating-error" className="text-destructive -mt-2 text-sm">
+          {state.fieldErrors.rating[0]}
+        </p>
       ) : null}
 
       <div className="flex flex-col gap-1.5">
+        <Label htmlFor="comment" className="sr-only">
+          Comment
+        </Label>
         <Textarea
+          id="comment"
           name="comment"
           placeholder="Write a comment (optional)"
           value={comment}
           onChange={(e) => setComment(e.target.value.slice(0, REVIEW_COMMENT_MAX_LENGTH))}
           maxLength={REVIEW_COMMENT_MAX_LENGTH}
           className="min-h-24"
+          aria-describedby={state.fieldErrors?.comment ? "comment-error" : undefined}
         />
         <div className="flex items-center justify-between">
           {state.fieldErrors?.comment ? (
-            <p className="text-destructive text-xs">{state.fieldErrors.comment[0]}</p>
+            <p id="comment-error" className="text-destructive text-xs">
+              {state.fieldErrors.comment[0]}
+            </p>
           ) : (
             <span />
           )}

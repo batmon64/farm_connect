@@ -52,9 +52,13 @@ export function ProviderProfileForm({ profile }: { profile: ProviderProfile | nu
           className="h-11"
           defaultValue={profile?.business_name ?? ""}
           placeholder="e.g. Kochi Agri Services"
+          aria-invalid={Boolean(state.fieldErrors?.businessName)}
+          aria-describedby={state.fieldErrors?.businessName ? "businessName-error" : undefined}
         />
         {state.fieldErrors?.businessName ? (
-          <p className="text-destructive text-sm">{state.fieldErrors.businessName[0]}</p>
+          <p id="businessName-error" className="text-destructive text-sm">
+            {state.fieldErrors.businessName[0]}
+          </p>
         ) : null}
       </div>
 

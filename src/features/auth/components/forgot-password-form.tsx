@@ -45,9 +45,12 @@ export function ForgotPasswordForm() {
           className="h-11"
           defaultValue={state.values?.email ?? ""}
           aria-invalid={Boolean(state.fieldErrors?.email)}
+          aria-describedby={state.fieldErrors?.email ? "email-error" : undefined}
         />
         {state.fieldErrors?.email ? (
-          <p className="text-destructive text-sm">{state.fieldErrors.email[0]}</p>
+          <p id="email-error" className="text-destructive text-sm">
+            {state.fieldErrors.email[0]}
+          </p>
         ) : null}
       </div>
 

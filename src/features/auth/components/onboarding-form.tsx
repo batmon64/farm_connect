@@ -38,25 +38,38 @@ export function OnboardingForm({
           className="h-11"
           defaultValue={state.values?.displayName ?? defaultDisplayName}
           aria-invalid={Boolean(state.fieldErrors?.displayName)}
+          aria-describedby={state.fieldErrors?.displayName ? "displayName-error" : undefined}
         />
         {state.fieldErrors?.displayName ? (
-          <p className="text-destructive text-sm">
+          <p id="displayName-error" className="text-destructive text-sm">
             {state.fieldErrors.displayName[0]}
           </p>
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-3">
-        <Label>I want to use FarmConnect as</Label>
+      <fieldset className="flex flex-col gap-3">
+        <legend className="text-sm leading-none font-medium">
+          I want to use FarmConnect as
+        </legend>
         <label className="has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 flex cursor-pointer items-start gap-3 rounded-lg border border-input p-3 text-sm transition-colors">
-          <Checkbox name="isFarmer" className="mt-0.5" defaultChecked={state.values?.isFarmer === "on"} />
+          <Checkbox
+            name="isFarmer"
+            className="mt-0.5"
+            defaultChecked={state.values?.isFarmer === "on"}
+            aria-describedby={state.fieldErrors?.isFarmer ? "isFarmer-error" : undefined}
+          />
           <span>
             <span className="block font-medium">Farmer</span>
             <span className="text-muted-foreground">I need work done</span>
           </span>
         </label>
         <label className="has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 flex cursor-pointer items-start gap-3 rounded-lg border border-input p-3 text-sm transition-colors">
-          <Checkbox name="isProvider" className="mt-0.5" defaultChecked={state.values?.isProvider === "on"} />
+          <Checkbox
+            name="isProvider"
+            className="mt-0.5"
+            defaultChecked={state.values?.isProvider === "on"}
+            aria-describedby={state.fieldErrors?.isFarmer ? "isFarmer-error" : undefined}
+          />
           <span>
             <span className="block font-medium">Provider</span>
             <span className="text-muted-foreground">
@@ -65,9 +78,11 @@ export function OnboardingForm({
           </span>
         </label>
         {state.fieldErrors?.isFarmer ? (
-          <p className="text-destructive text-sm">{state.fieldErrors.isFarmer[0]}</p>
+          <p id="isFarmer-error" className="text-destructive text-sm">
+            {state.fieldErrors.isFarmer[0]}
+          </p>
         ) : null}
-      </div>
+      </fieldset>
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="phone">

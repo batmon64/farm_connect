@@ -33,9 +33,18 @@ export function AccountProfileForm({
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="displayName">Display name</Label>
-        <Input id="displayName" name="displayName" className="h-11" defaultValue={displayName} />
+        <Input
+          id="displayName"
+          name="displayName"
+          className="h-11"
+          defaultValue={displayName}
+          aria-invalid={Boolean(state.fieldErrors?.displayName)}
+          aria-describedby={state.fieldErrors?.displayName ? "displayName-error" : undefined}
+        />
         {state.fieldErrors?.displayName ? (
-          <p className="text-destructive text-sm">{state.fieldErrors.displayName[0]}</p>
+          <p id="displayName-error" className="text-destructive text-sm">
+            {state.fieldErrors.displayName[0]}
+          </p>
         ) : null}
       </div>
 

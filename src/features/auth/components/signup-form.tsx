@@ -63,9 +63,12 @@ export function SignUpForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           aria-invalid={Boolean(state.fieldErrors?.email)}
+          aria-describedby={state.fieldErrors?.email ? "email-error" : undefined}
         />
         {state.fieldErrors?.email ? (
-          <p className="text-destructive text-sm">{state.fieldErrors.email[0]}</p>
+          <p id="email-error" className="text-destructive text-sm">
+            {state.fieldErrors.email[0]}
+          </p>
         ) : null}
       </div>
 
@@ -79,11 +82,14 @@ export function SignUpForm() {
           required
           className="h-11"
           aria-invalid={Boolean(state.fieldErrors?.password)}
+          aria-describedby={state.fieldErrors?.password ? "password-error" : "password-hint"}
         />
         {state.fieldErrors?.password ? (
-          <p className="text-destructive text-sm">{state.fieldErrors.password[0]}</p>
+          <p id="password-error" className="text-destructive text-sm">
+            {state.fieldErrors.password[0]}
+          </p>
         ) : (
-          <p className="text-muted-foreground text-xs">
+          <p id="password-hint" className="text-muted-foreground text-xs">
             At least 8 characters, with a letter and a number.
           </p>
         )}
@@ -99,9 +105,12 @@ export function SignUpForm() {
           required
           className="h-11"
           aria-invalid={Boolean(state.fieldErrors?.confirmPassword)}
+          aria-describedby={
+            state.fieldErrors?.confirmPassword ? "confirmPassword-error" : undefined
+          }
         />
         {state.fieldErrors?.confirmPassword ? (
-          <p className="text-destructive text-sm">
+          <p id="confirmPassword-error" className="text-destructive text-sm">
             {state.fieldErrors.confirmPassword[0]}
           </p>
         ) : null}

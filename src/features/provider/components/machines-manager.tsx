@@ -98,9 +98,18 @@ export function MachinesManager({
 
               <div className="flex flex-col gap-2">
                 <Label htmlFor="machineName">Name</Label>
-                <Input id="machineName" name="name" className="h-11" placeholder="e.g. Mahindra 275 DI" />
+                <Input
+                  id="machineName"
+                  name="name"
+                  className="h-11"
+                  placeholder="e.g. Mahindra 275 DI"
+                  aria-invalid={Boolean(state.fieldErrors?.name)}
+                  aria-describedby={state.fieldErrors?.name ? "machineName-error" : undefined}
+                />
                 {state.fieldErrors?.name ? (
-                  <p className="text-destructive text-sm">{state.fieldErrors.name[0]}</p>
+                  <p id="machineName-error" className="text-destructive text-sm">
+                    {state.fieldErrors.name[0]}
+                  </p>
                 ) : null}
               </div>
               <div className="grid grid-cols-2 gap-3">
