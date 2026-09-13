@@ -15,7 +15,9 @@ import { ServicesManager } from "@/features/provider/components/services-manager
 import { MachinesManager } from "@/features/provider/components/machines-manager";
 import { WorkersTeamsManager } from "@/features/provider/components/workers-teams-manager";
 import { AvailabilityManager } from "@/features/provider/components/availability-manager";
+import { ProviderTrustSummary } from "@/features/provider/components/provider-trust-summary";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export const metadata: Metadata = { title: "Provider profile — FarmConnect" };
@@ -52,7 +54,25 @@ export default async function ProviderProfilePage() {
           <ProviderProfileForm profile={null} />
         </>
       ) : (
-        <Tabs defaultValue="business">
+        <>
+          <Card>
+            <CardContent className="pt-5">
+              <p className="text-muted-foreground mb-3 text-xs">This is how farmers see you</p>
+              <ProviderTrustSummary
+                businessName={providerProfile.business_name}
+                ratingAverage={providerProfile.rating_average}
+                ratingCount={providerProfile.rating_count}
+                completedJobsCount={providerProfile.completed_jobs_count}
+                verificationStatus={providerProfile.verification_status}
+                serviceNames={myServices
+                  .filter((s) => s.is_active)
+                  .map((s) => s.services?.name)
+                  .filter((name): name is string => Boolean(name))}
+              />
+            </CardContent>
+          </Card>
+
+          <Tabs defaultValue="business">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="business">Business</TabsTrigger>
             <TabsTrigger value="services">Services</TabsTrigger>
@@ -75,7 +95,8 @@ export default async function ProviderProfilePage() {
           <TabsContent value="availability" className="pt-4">
             <AvailabilityManager availability={availability} />
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        </>
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { IndianRupee, Calendar, MapPin } from "lucide-react";
+import { IndianRupee, Calendar, MapPin, Clock, CheckCircle2, XCircle, Ban, TimerOff } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatDateTime, OFFER_STATUS_LABEL, JOB_STATUS_LABEL } from "@/features/marketplace/format";
@@ -13,7 +14,16 @@ const OFFER_VARIANT: Record<string, "default" | "secondary" | "destructive" | "o
   expired: "outline",
 };
 
+const OFFER_ICON: Record<string, LucideIcon> = {
+  pending: Clock,
+  accepted: CheckCircle2,
+  rejected: XCircle,
+  withdrawn: Ban,
+  expired: TimerOff,
+};
+
 export function MyOfferCard({ offer }: { offer: MyOffer }) {
+  const StatusIcon = OFFER_ICON[offer.status];
   return (
     <Link href={`/app/provider/jobs/${offer.job_id}`}>
       <Card className="hover:border-primary/40 transition-colors">
@@ -21,6 +31,7 @@ export function MyOfferCard({ offer }: { offer: MyOffer }) {
           <div className="flex items-start justify-between gap-3">
             <h3 className="font-medium">{offer.job_title}</h3>
             <Badge variant={OFFER_VARIANT[offer.status] ?? "outline"}>
+              {StatusIcon ? <StatusIcon className="size-3" aria-hidden /> : null}
               {OFFER_STATUS_LABEL[offer.status] ?? offer.status}
             </Badge>
           </div>
