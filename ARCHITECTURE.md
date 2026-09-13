@@ -465,6 +465,141 @@ layouts, rather than a duplicated one.
 is never communicated by badge color alone and the two never drift
 apart into different icons for the same status.
 
+## Job lifecycle (Phase 4)
+
+**farm_jobs.status already allowed the full lifecycle since 0007** — its
+`CHECK` constraint has always included `in_progress`/`completed`/
+`cancelled` alongside the earlier states, so this phase needed no enum
+widening, just the timestamp columns (`started_at`, `completed_at`,
+`cancelled_at`, `cancelled_by`, `cancellation_reason`, all on
+`farm_jobs`, 0022) and the RPC that actually enforces the transitions.
+
+**The state machine** (the only five legal `(from_status, action,
+actor)` combinations `transition_job_status()` accepts):
+
+| From | Action | To | Who |
+|---|---|---|---|
+| `confirmed` | `start` | `in_progress` | assigned provider only |
+| `confirmed` | `complete` | `completed` | farmer only |
+| `in_progress` | `complete` | `completed` | farmer **or** assigned provider |
+| `confirmed` | `cancel` | `cancelled` | farmer only |
+| `in_progress` | `cancel` | `cancelled` | farmer only |
+
+Everything else is rejected — every pre-confirmation state
+(`draft`/`posted`/`matching`/`offers_received`), both terminal states
+(`completed`/`cancelled`) as a *source*, and any actor not covered
+above. A farmer can complete a job directly from `confirmed` without it
+ever passing through `in_progress` (the provider may simply never have
+clicked Start) — a provider cannot, since starting is the one signal
+they've actually begun. A provider was deliberately **not** given a
+cancel action: Part B of the phase brief named cancellation as a farmer
+capability only, and giving a provider a way to unilaterally end a
+confirmed engagement is a materially different, un-requested feature
+(closer to "withdraw," which doesn't exist post-assignment) rather than
+a small extension of what was asked.
+
+**job_assignments.status is intentionally not part of this lifecycle.**
+It stays at `'assigned'` — the value `accept_job_offer` already sets —
+for the rest of the assignment's life, including through
+`in_progress`/`completed`/`cancelled`. Two things depend on it staying
+in `('assigned', 'confirmed')`: the "one active assignment per job"
+partial unique index (0007) and the privacy-unlock checks
+(`is_assigned_provider_for_job`, the `profiles` counterparty policy,
+both 0011) that grant exact location/phone once a provider is assigned.
+Leaving it untouched keeps that unlock correctly "on" for the rest of
+the job's life — including a cancelled job, where both parties
+reasonably still need each other's contact info as history — without
+introducing a second status vocabulary that could drift from
+`farm_jobs.status`. The one place that used to read
+`job_assignments.status` for lifecycle purposes (the provider Work
+page's "what's active" filter) now reads the joined `farm_jobs.status`
+instead.
+
+**transition_job_status(p_job_id, p_action, p_cancellation_reason)** is
+`SECURITY DEFINER` (like `submit_job_offer`/`accept_job_offer`) because
+the provider-side actions (`start`, and provider-side `complete`) are
+not the job owner and have no `farm_jobs` `UPDATE` grant under the
+existing owner-only RLS policy. It re-derives authorization from
+scratch on every call — `v_is_owner` from `farm_jobs.created_by`,
+`v_is_provider` from an `exists` check against `job_assignments` scoped
+to *this* job and an active assignment status — never trusts anything
+the client claims about who it is. Client-supplied timestamps are
+impossible by construction: `started_at`/`completed_at`/`cancelled_at`
+are always `now()`, `cancelled_by` is always `auth.uid()`, set inside
+the function, not accepted as parameters.
+
+**Concurrency**: `select ... for update` takes a row lock on the job as
+the first thing the function does, so a second concurrent call blocks
+until the first transaction commits, then re-reads the now-current
+status under its own lock — it can never act on stale state. The
+subsequent `update ... where status = <status read under the lock>` is
+a belt-and-suspenders guard restating that assumption; the lock alone
+already prevents the race. Tested directly: calling `start` twice in a
+row correctly rejects the second call ("job is not in a startable
+state"), and a `start` immediately followed by a `cancel` on the same
+job succeeds as two sequential, individually-valid transitions with a
+fully consistent final row (`started_at` preserved, `cancelled_at`/
+`cancelled_by`/`cancellation_reason` set, `completed_at` still null) —
+there is no interleaving that leaves partial state.
+
+**Pending-offer behavior after confirmation** (Part O decision):
+`accept_job_offer` now also runs
+`update job_offers set status = 'rejected' where job_id = ... and id <>
+p_offer_id and status = 'pending'` in the same transaction as creating
+the assignment. Every other still-pending offer on that job is
+deterministically rejected the moment one is accepted, rather than left
+dangling forever or requiring a separate cleanup job. Verified directly:
+two competing pending offers on one job, accepting one, confirms the
+other flips to `'rejected'` in the same request.
+
+**Cancellation reasons** are a fixed client-side list
+(`CANCELLATION_REASONS` in `src/types/marketplace.ts`: Plans changed /
+Provider unavailable / Weather conditions / Work no longer needed /
+Other), stored as plain text in `cancellation_reason` — no separate
+reasons table. Selecting "Other" reveals an optional free-text field
+whose content is prefixed (`Other: ...`) before being sent, so the
+stored reason is still a single self-describing string.
+
+**Notifications**: three new types (`job_started`, `job_completed`,
+`job_cancelled`, added to `notifications`'s `type` `CHECK` constraint
+alongside the existing three) are generated inside
+`transition_job_status` as it makes the change, on the existing
+`create_notification` path (see "Notifications" above) — no new
+notification-sending code outside the RPC layer. Four of the five
+notification-worthy transitions have an unambiguous recipient side by
+construction (`job_started` and a provider-triggered `job_completed` go
+to the farmer; `job_cancelled` and a farmer-triggered `job_completed`
+go to the provider). `job_completed` is the one type either side can
+receive, so `notificationHref` takes an optional `isFarmerForJob` flag
+that the notifications page resolves with one small batched query
+(`farm_jobs` filtered to `created_by = auth.uid()` for just the
+ambiguous job ids) rather than guessing. Whichever URL is picked, the
+destination page enforces its own authorization independently (RLS on
+the farmer route, an assignment check on the provider route) — a wrong
+guess 404s, it never leaks a job.
+
+**The provider-side job detail route now has two branches.**
+`/app/provider/jobs/[jobId]` first tries `discover_jobs` (the
+open/pre-offer view); if that returns nothing — because the job has
+moved past `confirmed` and left `discover_jobs`'s status filter — it
+falls back to a new query, `getMyAssignmentForJob`, which returns this
+job's assignment (RLS-scoped to the job owner or the assigned provider,
+same as always) with the full `farm_jobs` row and farmer contact. This
+closed a real gap from Phase 3C: an `offer_accepted` notification had
+nowhere specific to link a provider to before this phase, since the
+confirmed job was invisible to every provider-facing query. It now
+routes straight to the job.
+
+**Job history** is derived entirely from the existing timestamp/
+cancellation columns (`JobHistory` component) — not a separate
+event-log table. With at most three possible events per job
+(started, completed, cancelled) and no requirement to record multiple
+occurrences of the same event (a job is never un-started or
+un-completed), the existing columns already hold everything the UI
+needs; a genuine append-only audit trail would only earn its
+complexity if a future phase needed multiple events of the same kind
+(e.g. reschedules).
+
 ## Environment variables
 
 All access goes through `src/lib/env.ts`, which throws a clear error if a
@@ -534,7 +669,11 @@ displayed from `provider_profiles` but nothing writes to them from the
 app yet), no worker/machine-to-assignment allocation, and no admin
 functionality. Auth (Phase 2), the marketplace database foundation
 (Phase 3A), the first farmer↔provider job loop (Phase 3B), the
-notification foundation (Phase 3C), and marketplace discovery/filtering/
-trust presentation (Phase 3D) exist — see the sections above. These
-remaining items are scoped to future phases and should not be
+notification foundation (Phase 3C), marketplace discovery/filtering/
+trust presentation (Phase 3D), and the confirmed→in_progress→completed/
+cancelled job lifecycle (Phase 4) exist — see the sections above. A
+provider cannot cancel a confirmed/in-progress job (only the farmer
+can, by explicit design — see "Job lifecycle"); no payment/commission
+step exists between a job being priced (via the offer) and completed.
+These remaining items are scoped to future phases and should not be
 anticipated speculatively in this codebase.
