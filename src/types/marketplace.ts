@@ -213,6 +213,23 @@ export type OfferForJob = {
   created_at: string;
 };
 
+export type NotificationType = "offer_received" | "offer_accepted" | "system";
+
+/** Mirrors public.notifications (0017). Rows are only ever written by
+ * create_notification(), a locked-down SECURITY DEFINER helper called
+ * from submit_job_offer / accept_job_offer — never by the client. */
+export type Notification = {
+  id: string;
+  recipient_id: string;
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  related_entity_type: string | null;
+  related_entity_id: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
 /** Row shape returned by get_my_offers() (0011). */
 export type MyOffer = {
   offer_id: string;

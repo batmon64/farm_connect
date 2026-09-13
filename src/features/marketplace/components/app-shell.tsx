@@ -31,10 +31,12 @@ const PROVIDER_NAV = [
 export function AppShell({
   isFarmer,
   isProvider,
+  unreadCount = 0,
   children,
 }: {
   isFarmer: boolean;
   isProvider: boolean;
+  unreadCount?: number;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -48,14 +50,14 @@ export function AppShell({
         <div className="border-border/60 bg-muted/40 border-b">
           <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-4 py-2 text-sm">
             <span className="text-muted-foreground">
-              Viewing as <span className="text-foreground font-medium">{inProvider ? "Provider" : "Farmer"}</span>
+              {inProvider ? "Providing services" : "Finding services"}
             </span>
             <Link
               href={inProvider ? "/app" : "/app/provider"}
               className="text-foreground inline-flex items-center gap-1.5 font-medium underline underline-offset-4"
             >
               <ArrowLeftRight className="size-3.5" aria-hidden />
-              Switch to {inProvider ? "Farmer" : "Provider"}
+              {inProvider ? "Find Services" : "Provide Services"}
             </Link>
           </div>
         </div>
@@ -70,19 +72,31 @@ export function AppShell({
             const active = href === "/app" || href === "/app/provider"
               ? pathname === href
               : pathname.startsWith(href);
+            const showBadge = Icon === Bell && unreadCount > 0;
             return (
               <Link
                 key={href}
                 href={href}
                 className={cn(
-                  "inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  "relative inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   active
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <Icon className="size-4" aria-hidden />
+                <span className="relative">
+                  <Icon className="size-4" aria-hidden />
+                  {showBadge ? (
+                    <span
+                      className="bg-destructive absolute -right-1.5 -top-1.5 flex size-3.5 items-center justify-center rounded-full text-[9px] font-semibold text-white"
+                      aria-hidden
+                    >
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  ) : null}
+                </span>
                 {label}
+                {showBadge ? <span className="sr-only">({unreadCount} unread)</span> : null}
               </Link>
             );
           })}
@@ -102,6 +116,7 @@ export function AppShell({
             const active = href === "/app" || href === "/app/provider"
               ? pathname === href
               : pathname.startsWith(href);
+            const showBadge = Icon === Bell && unreadCount > 0;
             return (
               <Link
                 key={href}
@@ -111,8 +126,19 @@ export function AppShell({
                   active ? "text-primary" : "text-muted-foreground"
                 )}
               >
-                <Icon className="size-5" aria-hidden />
+                <span className="relative">
+                  <Icon className="size-5" aria-hidden />
+                  {showBadge ? (
+                    <span
+                      className="bg-destructive absolute -right-1.5 -top-1.5 flex size-3.5 items-center justify-center rounded-full text-[9px] font-semibold text-white"
+                      aria-hidden
+                    >
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  ) : null}
+                </span>
                 {label}
+                {showBadge ? <span className="sr-only">({unreadCount} unread)</span> : null}
               </Link>
             );
           })}
