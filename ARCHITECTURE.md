@@ -917,24 +917,38 @@ project avoids elsewhere. Added two real service types
 (`0029_transportation_services.sql`): Produce Transport, Equipment
 Transport.
 
-**Demo/test account convention** (unchanged from earlier phases,
-recorded here since Phase 6 is a good place to make it explicit):
-accounts are created directly via `insert into auth.users (...)` with
-`crypt(password, gen_salt('bf'))` and `email_confirmed_at = now()`,
-bypassing GoTrue's email flow — normal signup hits Supabase's email
-rate limit quickly under repeated testing. This requires setting
+**Demo/test account convention**: accounts are created directly via
+`insert into auth.users (...)` with `crypt(password, gen_salt('bf'))`
+and `email_confirmed_at = now()`, bypassing GoTrue's email flow —
+normal signup hits Supabase's email rate limit quickly under repeated
+testing. This requires setting
 `email_change`/`email_change_token_new`/`email_change_token_current`/
 `phone_change`/`phone_change_token`/`reauthentication_token` to `''`
 rather than leaving them `NULL` — GoTrue's Go code scans these columns
 into non-nullable strings and returns a bare "Database error querying
 schema" (500) on the next password-grant token request if any are
-`NULL`. Every test account created this way is deleted at the end of
-the session (auth.users, profiles, provider_profiles + their owned
-rows, farm_jobs and everything chained from them, notifications) —
-verified empty afterward. There is no separate, permanent "demo
-dataset" seeded into this project; a live demo is expected to use two
-freshly created accounts walked through the real flow, which is also
-what this phase's own testing did.
+`NULL`. Also note `confirmed_at` is a generated column on current
+Supabase (derived from `email_confirmed_at`/`phone_confirmed_at`) —
+don't try to insert it directly.
+
+Through Phase 6, every test account created this way was deleted at
+the end of its session, and there was no permanent demo dataset.
+**That changed for the investor-demo pass** (post-Phase 9): seven
+demo accounts (three farmers, four providers) are now permanently
+seeded into the live project — `*.demo@farmconnect.demo` style
+addresses, `Demo@1234`, never deleted. They exercise every job status
+(`posted`/`offers_received`/`confirmed`/`in_progress`/`completed`/
+`cancelled`), both directions of review, and a deliberate honest
+"New provider · no ratings yet" state (two of the four demo providers
+have zero reviews) so the anti-fabrication design is visible in the
+demo, not just in code. Seeded by direct SQL, not through the RPCs —
+inserting rows on the *wrong side* of a status-transition trigger
+silently skips its side effect (`farm_jobs_increment_completed_count`
+only fires on `UPDATE ... status = 'completed'`, not on an `INSERT`
+that starts there), so jobs meant to end up `completed`/`cancelled`
+are inserted at an earlier status and moved there via `UPDATE`, same
+as the real transition RPCs would. This data is additive only —
+never touches the project's pre-existing real user accounts.
 
 **Verified live in the browser, not just read as code**: the full
 farmer→provider flow (post a job, receive and accept a real offer,
