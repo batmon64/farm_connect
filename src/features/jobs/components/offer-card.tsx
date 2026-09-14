@@ -16,10 +16,12 @@ export function OfferCard({
   offer,
   jobId,
   canAccept,
+  isLowestPrice = false,
 }: {
   offer: OfferForJob;
   jobId: string;
   canAccept: boolean;
+  isLowestPrice?: boolean;
 }) {
   const providerName = offer.business_name || "Unnamed provider";
   const distance = formatDistance(offer.distance_km);
@@ -91,6 +93,11 @@ export function OfferCard({
             <IndianRupee className="size-4" aria-hidden />
             {offer.price != null ? offer.price.toLocaleString("en-IN") : "Quote on request"}
           </span>
+          {isLowestPrice ? (
+            <span className="bg-fc-ok/14 text-fc-ok rounded-full px-2 py-0.5 text-[10px] font-medium">
+              Lowest price
+            </span>
+          ) : null}
           {offer.estimated_start ? (
             <span className="text-muted-foreground inline-flex items-center gap-1">
               <Clock className="size-3.5" aria-hidden />

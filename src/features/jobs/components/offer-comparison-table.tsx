@@ -27,10 +27,12 @@ export function OfferComparisonTable({
   offers,
   jobId,
   canAccept,
+  lowestPendingPrice = null,
 }: {
   offers: OfferForJob[];
   jobId: string;
   canAccept: boolean;
+  lowestPendingPrice?: number | null;
 }) {
   return (
     <div className="hidden overflow-hidden rounded-lg border md:block">
@@ -114,7 +116,16 @@ export function OfferComparisonTable({
                   )}
                 </TableCell>
                 <TableCell className="text-right font-medium">
-                  {offer.price != null ? `₹${offer.price.toLocaleString("en-IN")}` : "Quote on request"}
+                  <div className="flex flex-col items-end gap-0.5">
+                    <span>
+                      {offer.price != null ? `₹${offer.price.toLocaleString("en-IN")}` : "Quote on request"}
+                    </span>
+                    {lowestPendingPrice != null && offer.price === lowestPendingPrice ? (
+                      <span className="bg-fc-ok/14 text-fc-ok rounded-full px-2 py-0.5 text-[10px] font-medium">
+                        Lowest price
+                      </span>
+                    ) : null}
+                  </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
                   {offer.estimated_start ? formatDateTime(offer.estimated_start) : "—"}

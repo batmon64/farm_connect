@@ -52,6 +52,10 @@ export default async function JobDetailPage({
 
   const offers = !isConfirmedOrLater ? await getOffersForJob(supabase, jobId) : [];
   const providerName = assignment?.provider_profiles?.business_name || providerContact?.display_name || "Provider";
+  const pendingPrices = offers
+    .filter((o) => o.status === "pending" && o.price != null)
+    .map((o) => o.price as number);
+  const lowestPendingPrice = pendingPrices.length > 1 ? Math.min(...pendingPrices) : null;
 
   let existingReview = null;
   if (job.status === "completed" && assignment) {
@@ -217,10 +221,25 @@ export default async function JobDetailPage({
             />
           ) : (
             <>
-              <OfferComparisonTable offers={offers} jobId={job.id} canAccept />
+              <OfferComparisonTable
+                offers={offers}
+                jobId={job.id}
+                canAccept
+                lowestPendingPrice={lowestPendingPrice}
+              />
               <div className="flex flex-col gap-3 md:hidden">
                 {offers.map((offer) => (
-                  <OfferCard key={offer.offer_id} offer={offer} jobId={job.id} canAccept />
+                  <OfferCard
+                    key={offer.offer_id}
+                    offer={offer}
+                    jobId={job.id}
+                    canAccept
+                    isLowestPrice={
+                      offer.status === "pending" &&
+                      offer.price != null &&
+                      offer.price === lowestPendingPrice
+                    }
+                  />
                 ))}
               </div>
             </>
