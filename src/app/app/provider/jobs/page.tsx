@@ -61,9 +61,13 @@ export default async function ProviderJobsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-heading text-xl font-semibold sm:text-2xl">Find Jobs</h1>
-        <p className="text-muted-foreground text-sm">
+      <div className="border-border bg-fc-surface-2 relative overflow-hidden rounded-2xl border p-6 md:p-8">
+        <p className="text-muted-foreground mb-3 flex items-center gap-2 font-mono text-[11px] tracking-[0.14em] uppercase">
+          <span className="bg-primary inline-block size-[5px] rounded-full" />
+          {jobs.length} job{jobs.length === 1 ? "" : "s"} nearby
+        </p>
+        <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">Find work</h1>
+        <p className="text-muted-foreground mt-1.5 max-w-[52ch] text-sm sm:text-base">
           Jobs matching your services appear first, then by distance and timing.
         </p>
       </div>

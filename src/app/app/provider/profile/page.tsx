@@ -48,7 +48,15 @@ export default async function ProviderProfilePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-heading text-xl font-semibold sm:text-2xl">Provider profile</h1>
+      <div>
+        <p className="text-muted-foreground mb-2 flex items-center gap-2 font-mono text-[11px] tracking-[0.14em] uppercase">
+          <span className="bg-primary inline-block size-[5px] rounded-full" />
+          Your public profile
+        </p>
+        <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+          Provider profile
+        </h1>
+      </div>
 
       {!providerProfile ? (
         <>
@@ -61,22 +69,22 @@ export default async function ProviderProfilePage() {
         </>
       ) : (
         <>
-          <Card>
-            <CardContent className="pt-5">
-              <p className="text-muted-foreground mb-3 text-xs">This is how farmers see you</p>
-              <ProviderTrustSummary
-                businessName={providerProfile.business_name}
-                ratingAverage={providerProfile.rating_average}
-                ratingCount={providerProfile.rating_count}
-                completedJobsCount={providerProfile.completed_jobs_count}
-                verificationStatus={providerProfile.verification_status}
-                serviceNames={myServices
-                  .filter((s) => s.is_active)
-                  .map((s) => s.services?.name)
-                  .filter((name): name is string => Boolean(name))}
-              />
-            </CardContent>
-          </Card>
+          <div className="border-border bg-card shadow-xl shadow-black/5 rounded-2xl border p-6 md:p-7">
+            <p className="text-muted-foreground mb-3 font-mono text-[11px] tracking-[0.14em] uppercase">
+              This is how farmers see you
+            </p>
+            <ProviderTrustSummary
+              businessName={providerProfile.business_name}
+              ratingAverage={providerProfile.rating_average}
+              ratingCount={providerProfile.rating_count}
+              completedJobsCount={providerProfile.completed_jobs_count}
+              verificationStatus={providerProfile.verification_status}
+              serviceNames={myServices
+                .filter((s) => s.is_active)
+                .map((s) => s.services?.name)
+                .filter((name): name is string => Boolean(name))}
+            />
+          </div>
 
           <Card>
             <CardContent className="flex flex-col gap-4 pt-5">
