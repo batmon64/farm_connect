@@ -44,3 +44,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local MCP server config (machine-specific absolute paths) and its
+# local approval state
+.mcp.json
+.claude/settings.local.json

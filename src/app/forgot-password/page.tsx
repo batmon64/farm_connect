@@ -11,6 +11,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthShell
+      eyebrow="Reset password"
       title="Forgot your password?"
       description="Enter your email and we'll send you a reset link."
     >

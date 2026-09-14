@@ -8,6 +8,7 @@ export const metadata: Metadata = { title: "Link expired — FarmConnect" };
 export default function AuthErrorPage() {
   return (
     <AuthShell
+      eyebrow="Link expired"
       title="This link is invalid or has expired"
       description="Verification and password reset links can only be used once and expire after a while."
     >

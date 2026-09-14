@@ -26,7 +26,7 @@ export default async function LoginPage({
   const notice = reset === "success" ? "Password updated. Log in with your new password." : undefined;
 
   return (
-    <AuthShell title="Log in" description="Welcome back to FarmConnect.">
+    <AuthShell eyebrow="Welcome back" title="Log in" description="Welcome back to FarmConnect.">
       {configured ? <LoginForm notice={notice} /> : <SupabaseConfigNotice />}
     </AuthShell>
   );

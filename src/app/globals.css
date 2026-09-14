@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-fc-mono);
+  --font-heading: var(--font-bricolage);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -39,6 +39,12 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-fc-surface-2: var(--fc-surface-2);
+  --color-fc-surface-3: var(--fc-surface-3);
+  --color-fc-ink: var(--fc-ink);
+  --color-fc-ok: var(--fc-ok);
+  --color-fc-warn: var(--fc-warn);
+  --color-fc-info: var(--fc-info);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -48,73 +54,110 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/*
+ * FarmConnect design system — sourced from the OpenDesign redesign
+ * (project "FarmConnect Design System"). Six core tokens (bg, surface, fg,
+ * muted, border, accent) plus derived surfaces/state colors, all OKLCH so
+ * color-mix() derivations elsewhere (hover states, soft tints) stay
+ * perceptually consistent. Mapped onto shadcn's variable names so every
+ * existing shadcn/ui primitive (Button, Card, Input, Dialog, Badge, ...)
+ * picks up the new look without per-component edits:
+ *   shadcn primary       -> OD accent (deep natural green, the brand color)
+ *   shadcn accent        -> OD's hover-highlight tint, NOT the brand color
+ *                            (shadcn uses "accent" for menu/hover highlight,
+ *                            OD uses "accent" for the brand color -- these
+ *                            are different concepts that happen to share a
+ *                            name)
+ *   shadcn muted/secondary -> OD surface-2 (filled neutral surface)
+ *   shadcn destructive    -> OD danger
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.984 0.006 95);
+  --foreground: oklch(0.245 0.022 155);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.245 0.022 155);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --popover-foreground: oklch(0.245 0.022 155);
+  --primary: oklch(0.455 0.088 152);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.972 0.008 115);
+  --secondary-foreground: oklch(0.245 0.022 155);
+  --muted: oklch(0.972 0.008 115);
+  --muted-foreground: oklch(0.505 0.016 150);
+  --accent: oklch(0.94 0.03 152);
+  --accent-foreground: oklch(0.245 0.022 155);
+  --destructive: oklch(0.545 0.15 28);
+  --border: oklch(0.906 0.011 120);
+  --input: oklch(0.906 0.011 120);
+  --ring: oklch(0.455 0.088 152);
+  --chart-1: oklch(0.455 0.088 152);
+  --chart-2: oklch(0.545 0.098 150);
+  --chart-3: oklch(0.66 0.12 68);
+  --chart-4: oklch(0.545 0.06 248);
+  --chart-5: oklch(0.505 0.016 150);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: oklch(0.972 0.008 115);
+  --sidebar-foreground: oklch(0.245 0.022 155);
+  --sidebar-primary: oklch(0.455 0.088 152);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.94 0.03 152);
+  --sidebar-accent-foreground: oklch(0.245 0.022 155);
+  --sidebar-border: oklch(0.906 0.011 120);
+  --sidebar-ring: oklch(0.455 0.088 152);
+
+  /* FarmConnect-specific surfaces and states, beyond shadcn's base set --
+     used directly (bg-fc-surface-2, text-fc-ok, ...) where a component
+     needs a step between `background` and `card`, or a status color that
+     isn't `destructive`. */
+  --fc-surface-2: oklch(0.972 0.008 115);
+  --fc-surface-3: oklch(0.955 0.01 120);
+  --fc-ink: oklch(0.213 0.024 156);
+  --fc-ok: oklch(0.545 0.098 150);
+  --fc-warn: oklch(0.66 0.12 68);
+  --fc-info: oklch(0.545 0.06 248);
+
+  --font-fc-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.16 0.018 155);
+  --foreground: oklch(0.94 0.012 110);
+  --card: oklch(0.205 0.02 155);
+  --card-foreground: oklch(0.94 0.012 110);
+  --popover: oklch(0.205 0.02 155);
+  --popover-foreground: oklch(0.94 0.012 110);
+  --primary: oklch(0.72 0.11 152);
+  --primary-foreground: oklch(0.16 0.018 155);
+  --secondary: oklch(0.26 0.018 155);
+  --secondary-foreground: oklch(0.94 0.012 110);
+  --muted: oklch(0.26 0.018 155);
+  --muted-foreground: oklch(0.68 0.014 130);
+  --accent: oklch(0.3 0.03 152);
+  --accent-foreground: oklch(0.94 0.012 110);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.72 0.11 152);
+  --chart-1: oklch(0.72 0.11 152);
+  --chart-2: oklch(0.68 0.014 130);
+  --chart-3: oklch(0.72 0.12 68);
+  --chart-4: oklch(0.65 0.06 248);
+  --chart-5: oklch(0.55 0.014 130);
+  --sidebar: oklch(0.205 0.02 155);
+  --sidebar-foreground: oklch(0.94 0.012 110);
+  --sidebar-primary: oklch(0.72 0.11 152);
+  --sidebar-primary-foreground: oklch(0.16 0.018 155);
+  --sidebar-accent: oklch(0.3 0.03 152);
+  --sidebar-accent-foreground: oklch(0.94 0.012 110);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.72 0.11 152);
+
+  --fc-surface-2: oklch(0.26 0.018 155);
+  --fc-surface-3: oklch(0.3 0.02 155);
+  --fc-ink: oklch(0.1 0.016 156);
+  --fc-ok: oklch(0.65 0.11 150);
+  --fc-warn: oklch(0.72 0.12 68);
+  --fc-info: oklch(0.65 0.07 248);
 }
 
 @layer base {
@@ -126,5 +169,11 @@
   }
   html {
     @apply font-sans;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-heading;
   }
 }

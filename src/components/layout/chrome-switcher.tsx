@@ -2,8 +2,17 @@
 
 import { usePathname } from "next/navigation";
 
+const AUTH_ROUTES = [
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/auth",
+  "/onboarding",
+];
+
 /**
- * Decides marketing vs. /app chrome on every render, including
+ * Decides marketing vs. /app vs. auth chrome on every render, including
  * client-side navigations. A Server Component reading the current path
  * (e.g. via a proxy-injected request header) only re-evaluates on a full
  * page load — the App Router reuses the already-rendered root layout
@@ -12,6 +21,11 @@ import { usePathname } from "next/navigation";
  * onboarding-complete redirect landing on /app while still wrapped in
  * the public header/footer/mobile tab bar). usePathname() is reactive to
  * client-side navigation, so this switches correctly every time.
+ *
+ * Auth routes (/login, /signup, /forgot-password, /reset-password,
+ * /auth/*, /onboarding) build their own full-bleed two-column shell via
+ * AuthShell, which already includes its own home link — the marketing
+ * header/footer would just double up there.
  */
 export function ChromeSwitcher({
   header,
@@ -24,8 +38,11 @@ export function ChromeSwitcher({
 }) {
   const pathname = usePathname();
   const inApp = pathname.startsWith("/app");
+  const inAuth = AUTH_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  );
 
-  if (inApp) return <>{children}</>;
+  if (inApp || inAuth) return <>{children}</>;
 
   return (
     <>

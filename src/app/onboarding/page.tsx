@@ -18,7 +18,7 @@ export default async function OnboardingPage({
 }) {
   if (!env.isSupabaseConfiguredPublic()) {
     return (
-      <AuthShell title="Set up your account">
+      <AuthShell eyebrow="Set up your account" title="Set up your account">
         <SupabaseConfigNotice />
       </AuthShell>
     );
@@ -34,6 +34,7 @@ export default async function OnboardingPage({
 
   return (
     <AuthShell
+      eyebrow="Almost there"
       title="Set up your account"
       description="Tell us a bit about how you'll use FarmConnect."
     >

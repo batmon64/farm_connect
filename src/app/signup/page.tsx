@@ -20,6 +20,7 @@ export default async function SignUpPage() {
 
   return (
     <AuthShell
+      eyebrow="Get started"
       title="Create your account"
       description="Join FarmConnect to find work or find help."
     >

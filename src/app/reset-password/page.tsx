@@ -14,7 +14,7 @@ export default async function ResetPasswordPage() {
 
   if (!configured) {
     return (
-      <AuthShell title="Reset password">
+      <AuthShell eyebrow="Reset password" title="Reset password">
         <SupabaseConfigNotice />
       </AuthShell>
     );
@@ -30,6 +30,7 @@ export default async function ResetPasswordPage() {
   if (!user) {
     return (
       <AuthShell
+        eyebrow="Reset password"
         title="Reset link invalid or expired"
         description="Password reset links only work once and expire after a while."
       >
@@ -41,7 +42,11 @@ export default async function ResetPasswordPage() {
   }
 
   return (
-    <AuthShell title="Set a new password" description="Choose a new password for your account.">
+    <AuthShell
+      eyebrow="Reset password"
+      title="Set a new password"
+      description="Choose a new password for your account."
+    >
       <ResetPasswordForm />
     </AuthShell>
   );
