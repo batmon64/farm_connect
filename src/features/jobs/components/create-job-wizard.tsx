@@ -167,9 +167,9 @@ export function CreateJobWizard({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between text-sm">
-          <span className="font-medium">{STEP_LABELS[step]}</span>
-          <span className="text-muted-foreground">
+        <div className="flex items-center justify-between">
+          <span className="font-heading font-semibold">{STEP_LABELS[step]}</span>
+          <span className="text-muted-foreground font-mono text-[11px] tracking-[0.1em] uppercase">
             Step {step + 1} of {STEP_LABELS.length}
           </span>
         </div>

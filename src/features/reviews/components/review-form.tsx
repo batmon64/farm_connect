@@ -42,7 +42,7 @@ export function ReviewForm({
             {[1, 2, 3, 4, 5].map((n) => (
               <Star
                 key={n}
-                className={`size-4 ${n <= shownRating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}
+                className={`size-4 ${n <= shownRating ? "fill-fc-star text-fc-star" : "text-muted-foreground"}`}
                 aria-hidden
               />
             ))}
@@ -61,7 +61,7 @@ export function ReviewForm({
       <input type="hidden" name="jobId" value={jobId} />
 
       <div>
-        <h3 className="font-medium">How was your experience?</h3>
+        <h3 className="font-heading font-semibold">How was your experience?</h3>
         <p className="text-muted-foreground text-sm">Rate {revieweeName}</p>
       </div>
 
