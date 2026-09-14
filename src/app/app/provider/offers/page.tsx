@@ -15,7 +15,7 @@ export default async function MyOffersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">My Offers</h1>
+      <h1 className="font-heading text-xl font-semibold sm:text-2xl">My Offers</h1>
 
       {offers.length === 0 ? (
         <EmptyState

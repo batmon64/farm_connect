@@ -37,7 +37,7 @@ export function StarRatingInput({
               />
               <Star
                 className={`size-9 transition-colors ${
-                  filled ? "fill-amber-400 text-amber-400" : "fill-none text-muted-foreground"
+                  filled ? "fill-fc-star text-fc-star" : "fill-none text-muted-foreground"
                 }`}
                 aria-hidden
               />

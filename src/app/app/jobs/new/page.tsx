@@ -17,7 +17,7 @@ export default async function NewJobPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Post a Job</h1>
+        <h1 className="font-heading text-xl font-semibold sm:text-2xl">Post a Job</h1>
         <p className="text-muted-foreground text-sm">Tell us what work you need done.</p>
       </div>
       <CreateJobWizard categories={categories} services={services} />

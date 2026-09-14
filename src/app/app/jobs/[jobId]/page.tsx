@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Calendar, Clock, IndianRupee, Phone, User, Inbox, MapPin } from "lucide-react";
+import { Calendar, Clock, IndianRupee, Phone, User, Inbox, MapPin, Lock, LockOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getJobDetail, getOffersForJob, getAcceptedAssignmentForJob } from "@/features/jobs/queries";
 import { JobStatusLine } from "@/features/jobs/components/job-status-line";
@@ -66,7 +66,7 @@ export default async function JobDetailPage({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
-        <h1 className="text-xl font-semibold">{job.title}</h1>
+        <h1 className="font-heading text-xl font-semibold sm:text-2xl">{job.title}</h1>
         {locality ? (
           <p className="text-muted-foreground inline-flex items-center gap-1 text-sm">
             <MapPin className="size-3.5" aria-hidden />
@@ -132,8 +132,20 @@ export default async function JobDetailPage({
             </CardContent>
           </Card>
 
-          <Card className={job.status === "cancelled" ? "border-destructive" : "border-primary"}>
+          <Card
+            className={
+              job.status === "cancelled"
+                ? "border-destructive"
+                : "border-fc-ok/40 bg-fc-ok/5"
+            }
+          >
             <CardContent className="flex flex-col gap-3 pt-5">
+              {job.status !== "cancelled" ? (
+                <p className="text-fc-ok flex items-center gap-1.5 text-xs font-medium">
+                  <LockOpen className="size-3.5" aria-hidden />
+                  Contact shared — only with this provider
+                </p>
+              ) : null}
               <div>
                 <p className="text-muted-foreground text-xs">Provider</p>
                 <p className="flex items-center gap-2 text-sm font-medium">
@@ -185,8 +197,16 @@ export default async function JobDetailPage({
           <JobHistory job={job} />
         </>
       ) : (
-        <div className="flex flex-col gap-3">
-          <h2 className="font-medium">
+        <div className="flex flex-col gap-4">
+          <div className="border-border bg-fc-surface-2 flex items-start gap-3 rounded-lg border p-4 text-sm">
+            <Lock className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+            <p className="text-muted-foreground">
+              Your phone number and exact location stay hidden. Providers see only your general
+              area until you accept an offer.
+            </p>
+          </div>
+
+          <h2 className="font-heading font-semibold">
             {offers.length > 0 ? `${offers.length} offer${offers.length === 1 ? "" : "s"} received` : "Offers"}
           </h2>
           {offers.length === 0 ? (

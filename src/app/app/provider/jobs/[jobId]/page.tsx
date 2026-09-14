@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Calendar, IndianRupee, MapPin, Phone, User } from "lucide-react";
+import { Calendar, IndianRupee, MapPin, Phone, User, Lock, LockOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/features/auth/profile";
 import {
@@ -82,8 +82,15 @@ export default async function ProviderJobDetailPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">{job.title}</h1>
+        <h1 className="font-heading text-xl font-semibold sm:text-2xl">{job.title}</h1>
         <p className="text-muted-foreground text-sm">Posted {formatDate(job.created_at)}</p>
+      </div>
+
+      <div className="border-border bg-fc-surface-2 flex items-start gap-3 rounded-lg border p-4 text-sm">
+        <Lock className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+        <p className="text-muted-foreground">
+          The farmer&apos;s exact location and phone number stay hidden until they accept your offer.
+        </p>
       </div>
 
       <Card>
@@ -151,7 +158,7 @@ export default async function ProviderJobDetailPage({
       ) : (
         <Card>
           <CardContent className="pt-5">
-            <h2 className="mb-4 font-medium">Make an Offer</h2>
+            <h2 className="font-heading mb-4 font-semibold">Make an Offer</h2>
             <SubmitOfferForm jobId={jobId} />
           </CardContent>
         </Card>
@@ -193,7 +200,7 @@ async function AssignedJobView({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
-        <h1 className="text-xl font-semibold">{job.title}</h1>
+        <h1 className="font-heading text-xl font-semibold sm:text-2xl">{job.title}</h1>
         {farmerProfile?.location ? (
           <p className="text-muted-foreground inline-flex items-center gap-1 text-sm">
             <MapPin className="size-3.5" aria-hidden />
@@ -225,8 +232,16 @@ async function AssignedJobView({
         </CardContent>
       </Card>
 
-      <Card className={job.status === "cancelled" ? "border-destructive" : "border-primary"}>
+      <Card
+        className={job.status === "cancelled" ? "border-destructive" : "border-fc-ok/40 bg-fc-ok/5"}
+      >
         <CardContent className="flex flex-col gap-3 pt-5">
+          {job.status !== "cancelled" ? (
+            <p className="text-fc-ok flex items-center gap-1.5 text-xs font-medium">
+              <LockOpen className="size-3.5" aria-hidden />
+              Contact shared — you&apos;re confirmed for this job
+            </p>
+          ) : null}
           {providerName ? (
             <div>
               <p className="text-muted-foreground text-xs">Your business</p>

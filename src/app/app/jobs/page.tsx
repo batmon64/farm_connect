@@ -20,7 +20,7 @@ export default async function MyJobsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">My Jobs</h1>
+        <h1 className="font-heading text-xl font-semibold sm:text-2xl">My Jobs</h1>
         <Button asChild size="sm">
           <Link href="/app/jobs/new">
             <Plus className="size-4" aria-hidden />

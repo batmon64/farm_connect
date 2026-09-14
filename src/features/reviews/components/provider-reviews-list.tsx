@@ -24,7 +24,7 @@ export function ProviderReviewsList({ reviews }: { reviews: ProviderReview[] }) 
             {[1, 2, 3, 4, 5].map((n) => (
               <Star
                 key={n}
-                className={`size-4 ${n <= review.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}
+                className={`size-4 ${n <= review.rating ? "fill-fc-star text-fc-star" : "text-muted-foreground"}`}
                 aria-hidden
               />
             ))}

@@ -48,7 +48,7 @@ export default async function ProviderProfilePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">Provider profile</h1>
+      <h1 className="font-heading text-xl font-semibold sm:text-2xl">Provider profile</h1>
 
       {!providerProfile ? (
         <>

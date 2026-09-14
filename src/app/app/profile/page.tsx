@@ -18,7 +18,7 @@ export default async function FarmerProfilePage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Profile</h1>
+        <h1 className="font-heading text-xl font-semibold sm:text-2xl">Profile</h1>
         <div className="mt-2 flex gap-2">
           {profile.is_farmer ? <Badge>Farmer</Badge> : null}
           {profile.is_provider ? <Badge variant="secondary">Provider</Badge> : null}
