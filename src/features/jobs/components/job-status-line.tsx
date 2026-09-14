@@ -4,13 +4,13 @@ import type { JobStatus } from "@/types/marketplace";
 
 const TONE: Record<string, string> = {
   draft: "text-muted-foreground",
-  posted: "text-emerald-600 dark:text-emerald-400",
-  matching: "text-emerald-600 dark:text-emerald-400",
-  offers_received: "text-emerald-600 dark:text-emerald-400",
-  provider_selected: "text-primary",
-  confirmed: "text-primary",
-  in_progress: "text-primary",
-  completed: "text-muted-foreground",
+  posted: "text-fc-warn",
+  matching: "text-fc-warn",
+  offers_received: "text-fc-warn",
+  provider_selected: "text-fc-info",
+  confirmed: "text-fc-info",
+  in_progress: "text-fc-progress",
+  completed: "text-fc-ok",
   cancelled: "text-destructive",
 };
 

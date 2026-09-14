@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus, Sprout } from "lucide-react";
+import { Plus, Sprout, Clock, UserCheck, PlayCircle, CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/features/auth/profile";
 import { listMyJobs } from "@/features/jobs/queries";
@@ -9,7 +9,6 @@ import { JobCard } from "@/features/jobs/components/job-card";
 import { EmptyState } from "@/features/marketplace/components/empty-state";
 import { MetricCard } from "@/features/marketplace/components/metric-card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 
 export const metadata: Metadata = { title: "Home — FarmConnect" };
 
@@ -28,44 +27,41 @@ export default async function FarmerHomePage() {
   const confirmed = jobs.filter((j) => j.status === "confirmed").length;
   const inProgress = jobs.filter((j) => j.status === "in_progress").length;
   const completed = jobs.filter((j) => j.status === "completed").length;
-  const activeJobs = confirmed + inProgress;
   const recent = jobs.slice(0, 5);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">
-            Welcome back{profile.display_name ? `, ${profile.display_name}` : ""}
-          </h1>
-          <p className="text-muted-foreground text-sm">Here&apos;s what&apos;s happening with your jobs.</p>
-        </div>
+    <div className="flex flex-col gap-8">
+      <div className="border-border bg-fc-surface-2 relative overflow-hidden rounded-2xl border p-6 md:p-8">
+        <p className="text-muted-foreground mb-3 flex items-center gap-2 font-mono text-[11px] tracking-[0.14em] uppercase">
+          <span className="bg-primary inline-block size-[5px] rounded-full" />
+          {profile.location || "Your account"} · Farmer
+        </p>
+        <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+          Welcome back{profile.display_name ? `, ${profile.display_name}` : ""}
+        </h1>
+        <p className="text-muted-foreground mt-1.5 max-w-[52ch] text-sm sm:text-base">
+          {jobs.length === 0
+            ? "Post your first job and providers nearby can start sending offers."
+            : `You have ${confirmed + inProgress} active job${confirmed + inProgress === 1 ? "" : "s"}, and ${awaitingOffers} awaiting offers.`}
+        </p>
+        <Button asChild className="mt-5 h-11">
+          <Link href="/app/jobs/new">
+            <Plus className="size-4" aria-hidden />
+            Post a Job
+          </Link>
+        </Button>
       </div>
 
-      <Button asChild className="h-12 w-full text-base md:w-auto">
-        <Link href="/app/jobs/new">
-          <Plus className="size-4" aria-hidden />
-          Post a Job
-        </Link>
-      </Button>
-
-      <Card className="border-primary/30 bg-primary/5">
-        <CardContent className="flex items-center justify-between px-5 py-4">
-          <span className="text-sm font-medium">Active Jobs</span>
-          <span className="text-2xl font-semibold">{activeJobs}</span>
-        </CardContent>
-      </Card>
-
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <MetricCard label="Awaiting Offers" value={awaitingOffers} />
-        <MetricCard label="Confirmed" value={confirmed} />
-        <MetricCard label="In Progress" value={inProgress} />
-        <MetricCard label="Completed" value={completed} />
+        <MetricCard label="Awaiting Offers" value={awaitingOffers} icon={Clock} tone="warn" />
+        <MetricCard label="Confirmed" value={confirmed} icon={UserCheck} tone="info" />
+        <MetricCard label="In Progress" value={inProgress} icon={PlayCircle} tone="progress" />
+        <MetricCard label="Completed" value={completed} icon={CheckCircle2} tone="ok" />
       </div>
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">Recent jobs</h2>
+          <h2 className="font-heading font-semibold">Recent jobs</h2>
           {jobs.length > 0 ? (
             <Link href="/app/jobs" className="text-primary text-sm underline underline-offset-4">
               View all
