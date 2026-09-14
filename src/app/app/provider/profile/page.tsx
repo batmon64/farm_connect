@@ -80,7 +80,7 @@ export default async function ProviderProfilePage() {
 
           <Card>
             <CardContent className="flex flex-col gap-4 pt-5">
-              <h2 className="font-medium">Reviews</h2>
+              <h2 className="font-heading font-semibold">Reviews</h2>
               <ProviderReviewsList reviews={reviews} />
             </CardContent>
           </Card>

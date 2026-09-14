@@ -24,7 +24,7 @@ export function JobHistory({ job }: { job: FarmJob }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="font-medium">Job history</h2>
+      <h2 className="font-heading font-semibold">Job history</h2>
       <div className="flex flex-col gap-3 text-sm">
         {entries.map((entry, i) => (
           <div key={i} className="border-border/60 border-b pb-3 last:border-0 last:pb-0">

@@ -29,7 +29,7 @@ export function MyOfferCard({ offer }: { offer: MyOffer }) {
       <Card className="hover:border-primary/40 transition-colors">
         <CardContent className="flex flex-col gap-2 pt-5">
           <div className="flex items-start justify-between gap-3">
-            <h3 className="font-medium">{offer.job_title}</h3>
+            <h3 className="font-heading font-semibold">{offer.job_title}</h3>
             <Badge variant={OFFER_VARIANT[offer.status] ?? "outline"}>
               {StatusIcon ? <StatusIcon className="size-3" aria-hidden /> : null}
               {OFFER_STATUS_LABEL[offer.status] ?? offer.status}

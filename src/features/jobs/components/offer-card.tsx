@@ -31,7 +31,7 @@ export function OfferCard({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="mb-1 flex items-center gap-2">
-              <h3 className="flex items-center gap-1.5 font-medium">
+              <h3 className="font-heading flex items-center gap-1.5 font-semibold">
                 {providerName}
                 {offer.verification_status === "verified" ? (
                   <BadgeCheck className="text-primary size-4" aria-label="Verified provider" />

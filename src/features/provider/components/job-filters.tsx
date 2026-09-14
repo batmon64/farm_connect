@@ -79,7 +79,7 @@ export function JobFilters({
 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0">
         <Select value={filters.service} onValueChange={(v) => setParam("service", v)}>
-          <SelectTrigger className="h-9 shrink-0" aria-label="Filter by service">
+          <SelectTrigger className="h-9 shrink-0 rounded-full" aria-label="Filter by service">
             <SelectValue placeholder="Service" />
           </SelectTrigger>
           <SelectContent>
@@ -93,7 +93,7 @@ export function JobFilters({
         </Select>
 
         <Select value={filters.date} onValueChange={(v) => setParam("date", v)}>
-          <SelectTrigger className="h-9 shrink-0" aria-label="Filter by date">
+          <SelectTrigger className="h-9 shrink-0 rounded-full" aria-label="Filter by date">
             <SelectValue placeholder="Date" />
           </SelectTrigger>
           <SelectContent>
@@ -106,7 +106,7 @@ export function JobFilters({
         </Select>
 
         <Select value={filters.distance} onValueChange={(v) => setParam("distance", v)}>
-          <SelectTrigger className="h-9 shrink-0" aria-label="Filter by distance">
+          <SelectTrigger className="h-9 shrink-0 rounded-full" aria-label="Filter by distance">
             <SelectValue placeholder="Distance" />
           </SelectTrigger>
           <SelectContent>
@@ -119,7 +119,7 @@ export function JobFilters({
         </Select>
 
         <Select value={filters.budget} onValueChange={(v) => setParam("budget", v)}>
-          <SelectTrigger className="h-9 shrink-0" aria-label="Filter by budget">
+          <SelectTrigger className="h-9 shrink-0 rounded-full" aria-label="Filter by budget">
             <SelectValue placeholder="Budget" />
           </SelectTrigger>
           <SelectContent>
@@ -132,7 +132,7 @@ export function JobFilters({
         </Select>
 
         <Select value={filters.sort} onValueChange={(v) => setParam("sort", v)}>
-          <SelectTrigger className="h-9 shrink-0" aria-label="Sort jobs">
+          <SelectTrigger className="h-9 shrink-0 rounded-full" aria-label="Sort jobs">
             <SelectValue placeholder="Sort" />
           </SelectTrigger>
           <SelectContent>

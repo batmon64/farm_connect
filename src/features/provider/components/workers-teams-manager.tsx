@@ -37,7 +37,7 @@ export function WorkersTeamsManager({
   return (
     <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-4">
-        <h3 className="font-medium">Workers</h3>
+        <h3 className="font-heading font-semibold">Workers</h3>
         {workers.length === 0 ? (
           <EmptyState
             icon={Users}
@@ -76,7 +76,7 @@ export function WorkersTeamsManager({
       </section>
 
       <section className="flex flex-col gap-4">
-        <h3 className="font-medium">Teams</h3>
+        <h3 className="font-heading font-semibold">Teams</h3>
         {teams.length === 0 ? (
           <EmptyState
             icon={Users}

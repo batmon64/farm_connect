@@ -22,7 +22,7 @@ export function DiscoveredJobCard({ job }: { job: DiscoveredJob }) {
       <Card className="hover:border-primary/40 transition-colors">
         <CardContent className="flex flex-col gap-2.5 pt-5">
           <div className="flex items-start justify-between gap-3">
-            <h3 className="font-medium">{job.title}</h3>
+            <h3 className="font-heading font-semibold">{job.title}</h3>
             <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
               {job.my_offer_status ? (
                 <Badge variant="outline" className="gap-1">
