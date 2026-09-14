@@ -24,7 +24,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const unreadCount = await getUnreadNotificationCount(supabase, user.id);
 
   return (
-    <AppShell isFarmer={profile.is_farmer} isProvider={profile.is_provider} unreadCount={unreadCount}>
+    <AppShell
+      isFarmer={profile.is_farmer}
+      isProvider={profile.is_provider}
+      unreadCount={unreadCount}
+      displayName={profile.display_name ?? ""}
+      location={profile.location}
+    >
       {children}
     </AppShell>
   );
