@@ -13,6 +13,18 @@ const TYPE_ICON: Record<Notification["type"], typeof FileText> = {
   system: Info,
 };
 
+/** Same tone family as the job-status pill system, so an "offer
+ * accepted" notification and a "Confirmed" status badge read as the
+ * same color everywhere in the app. */
+const TYPE_TONE_CLASS: Record<Notification["type"], string> = {
+  offer_received: "bg-fc-warn/14 text-fc-warn",
+  offer_accepted: "bg-fc-info/14 text-fc-info",
+  job_started: "bg-fc-progress/14 text-fc-progress",
+  job_completed: "bg-fc-ok/14 text-fc-ok",
+  job_cancelled: "bg-destructive/12 text-destructive",
+  system: "bg-fc-surface-3 text-muted-foreground",
+};
+
 export function NotificationRow({
   notification,
   isFarmerForJob,
@@ -34,11 +46,7 @@ export function NotificationRow({
           isUnread ? "bg-primary/5 border-primary/30" : "hover:bg-muted/40"
         }`}
       >
-        <span
-          className={`mt-0.5 rounded-full p-1.5 ${
-            isUnread ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
-          }`}
-        >
+        <span className={`mt-0.5 rounded-full p-1.5 ${TYPE_TONE_CLASS[notification.type]}`}>
           <Icon className="size-4" aria-hidden />
         </span>
         <span className="flex flex-1 flex-col gap-0.5">
